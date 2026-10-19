@@ -42,6 +42,11 @@ import UpgradePlanPage from '../pages/learner/UpgradePlanPage';
 
 // Curator Pages
 import StudioDashboard from '../pages/curator/StudioDashboard';
+import CuratorBuilderPage from '../pages/curator/CuratorBuilderPage';
+import CuratorAssetsPage from '../pages/curator/CuratorAssetsPage';
+import CuratorAnalyticsPage from '../pages/curator/CuratorAnalyticsPage';
+import CuratorFeedbackPage from '../pages/curator/CuratorFeedbackPage';
+import CuratorGuidelinesPage from '../pages/curator/CuratorGuidelinesPage';
 
 // Admin Pages
 import AdminDashboard from '../pages/admin/AdminDashboard';
@@ -111,6 +116,13 @@ export const router = createBrowserRouter([
         element: <CuratorLayout />,
         children: [
           { index: true, element: <StudioDashboard /> },
+          { path: 'builder', element: <CuratorBuilderPage /> },
+          { path: 'editor', element: <CuratorBuilderPage /> },
+          { path: 'courses', element: <StudioDashboard /> },
+          { path: 'assets', element: <CuratorAssetsPage /> },
+          { path: 'analytics', element: <CuratorAnalyticsPage /> },
+          { path: 'feedback', element: <CuratorFeedbackPage /> },
+          { path: 'guidelines', element: <CuratorGuidelinesPage /> },
         ],
       },
     ],
