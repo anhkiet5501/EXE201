@@ -1,0 +1,454 @@
+/* ==========================================================================
+   MIMO PLATFORM DESIGN SYSTEM — DUOLINGO & GETMIMO COMBINATION
+   Micro-learning & Gamified Life Skills
+   ========================================================================== */
+
+:root {
+  /* Xanh lá An toàn (Primary - Nút Đúng, Nút chính, Hoàn thành) */
+  --mimo-green: #22C55E;
+  --mimo-green-shadow: #16A34A;
+  --mimo-green-dark: #15803D;
+  --mimo-green-light: #DCFCE7;
+
+  /* Đỏ Cảnh báo & Mạng sống (Tim ❤️, Báo nguy hiểm, Trả lời sai) */
+  --mimo-red: #EF4444;
+  --mimo-red-shadow: #DC2626;
+  --mimo-red-dark: #B91C1C;
+  --mimo-red-light: #FEE2E2;
+
+  /* Cam Khẩn cấp & Chuỗi ngày (PCCC, Ngọn lửa Streak 🔥) */
+  --mimo-orange: #F97316;
+  --mimo-orange-shadow: #EA580C;
+  --mimo-orange-dark: #C2410C;
+  --mimo-orange-light: #FFEDD5;
+
+  /* Vàng Thành tích (XP ⭐, Cúp giải đấu 🏆, Ngôi sao) */
+  --mimo-yellow: #F59E0B;
+  --mimo-yellow-shadow: #D97706;
+  --mimo-yellow-dark: #B45309;
+  --mimo-yellow-light: #FEF3C7;
+
+  /* Xanh dương Bảo vệ & Sơ cứu (Y tế, An ninh mạng, Info 🛡️) */
+  --mimo-blue: #0EA5E9;
+  --mimo-blue-shadow: #0284C7;
+  --mimo-blue-dark: #0369A1;
+  --mimo-blue-light: #E0F2FE;
+
+  /* Tím Kỹ năng số & Đặc quyền Pro 👑 */
+  --mimo-purple: #8B5CF6;
+  --mimo-purple-shadow: #7C3AED;
+  --mimo-purple-dark: #6D28D9;
+  --mimo-purple-light: #F3E8FF;
+
+  /* Nền & Trung tính Clean Card-based Layout */
+  --bg-page: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --border-subtle: #E2E8F0;
+  --border-bold: #CBD5E1;
+  --border-dark: #94A3B8;
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --text-sub: #94A3B8;
+
+  /* Fonts & Shadows */
+  --font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.12);
+  --shadow-3d-base: 0 4px 0 #CBD5E1;
+}
+
+/* ==========================================================================
+   DARK THEME (DUOLINGO & MIMO DARK MODE)
+   ========================================================================== */
+[data-theme="dark"] {
+  --bg-page: #0B1120;
+  --bg-card: #1E293B;
+  --border-subtle: #334155;
+  --border-bold: #475569;
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --text-sub: #64748B;
+}
+
+[data-theme="dark"] body {
+  background: #0B1120 !important;
+  color: #F8FAFC !important;
+}
+
+/* ==========================================================================
+   PHYSICAL 3D BUTTONS (CHỮ KÝ CỦA DUOLINGO)
+   ========================================================================== */
+.btn-3d {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-family);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: var(--radius-md);
+  padding: 12px 24px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.08s ease, filter 0.1s ease, border-bottom-width 0.08s ease;
+  user-select: none;
+}
+
+.btn-3d:active {
+  transform: translateY(3px);
+  border-bottom-width: 2px !important;
+}
+
+/* 1. NÚT XANH LÁ (PRIMARY / TIẾP TỤC / KIỂM TRA) */
+.btn-3d-green {
+  background: var(--mimo-green);
+  color: #FFFFFF;
+  border-color: var(--mimo-green);
+  border-bottom: 5px solid var(--mimo-green-shadow);
+}
+.btn-3d-green:hover {
+  filter: brightness(1.05);
+}
+
+/* 2. NÚT ĐỎ (CẢNH BÁO / ĐÃ HIỂU / NGUY HIỂM) */
+.btn-3d-red {
+  background: var(--mimo-red);
+  color: #FFFFFF;
+  border-color: var(--mimo-red);
+  border-bottom: 5px solid var(--mimo-red-shadow);
+}
+.btn-3d-red:hover {
+  filter: brightness(1.05);
+}
+
+/* 3. NÚT XANH DƯƠNG (ACTION / BẮT ĐẦU) */
+.btn-3d-blue {
+  background: var(--mimo-blue);
+  color: #FFFFFF;
+  border-color: var(--mimo-blue);
+  border-bottom: 5px solid var(--mimo-blue-shadow);
+}
+.btn-3d-blue:hover {
+  filter: brightness(1.05);
+}
+
+/* 4. NÚT CAM (STREAK / NHIỆM VỤ) */
+.btn-3d-orange {
+  background: var(--mimo-orange);
+  color: #FFFFFF;
+  border-color: var(--mimo-orange);
+  border-bottom: 5px solid var(--mimo-orange-shadow);
+}
+.btn-3d-orange:hover {
+  filter: brightness(1.05);
+}
+
+/* 5. NÚT VÀNG (XP / REWARD) */
+.btn-3d-yellow {
+  background: var(--mimo-yellow);
+  color: #78350F;
+  border-color: var(--mimo-yellow);
+  border-bottom: 5px solid var(--mimo-yellow-shadow);
+}
+.btn-3d-yellow:hover {
+  filter: brightness(1.05);
+}
+
+/* 6. NÚT TRẮNG CAO CẤP (PREMIUM PILL / GENTLE 3D) */
+.btn-3d-white {
+  background: #FFFFFF;
+  color: #334155;
+  border: 1.5px solid #E2E8F0;
+  border-bottom: 3.5px solid #E2E8F0;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  font-weight: 800;
+}
+.btn-3d-white:hover {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  border-bottom-color: #CBD5E1;
+  color: #0F172A;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* 7. NÚT VÔ HIỆU HÓA (DISABLED) */
+.btn-3d-disabled {
+  background: #E2E8F0;
+  color: #94A3B8;
+  border-color: #CBD5E1;
+  border-bottom: 4px solid #CBD5E1;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Kích cỡ nút 3D */
+.btn-3d-sm {
+  padding: 8px 16px;
+  font-size: 13px;
+  border-bottom-width: 4px;
+}
+.btn-3d-lg {
+  padding: 16px 32px;
+  font-size: 17px;
+  border-bottom-width: 6px;
+}
+
+/* ==========================================================================
+   ANIMATIONS & EFFECTS
+   ========================================================================== */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(34, 197, 94, 0);
+    transform: scale(1.04);
+  }
+}
+
+@keyframes floatMascot {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes slideUpFeedback {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes shakeError {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+@keyframes heartBreakAnim {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4) rotate(10deg); filter: grayscale(1); }
+  100% { transform: scale(0.9); opacity: 0.5; }
+}
+
+.anim-pulse {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.anim-float {
+  animation: floatMascot 2.8s infinite ease-in-out;
+}
+
+.anim-shake {
+  animation: shakeError 0.4s ease-in-out;
+}
+
+/* ==========================================================================
+   BOTTOM FEEDBACK SHEET STYLES
+   ========================================================================== */
+.mimo-feedback-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 140px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  animation: slideUpFeedback 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mimo-feedback-sheet.idle {
+  background: #FFFFFF;
+  border-top: 2px solid var(--border-subtle);
+}
+
+.mimo-feedback-sheet.success {
+  background: var(--mimo-green-light);
+  border-top: 3px solid var(--mimo-green);
+}
+
+.mimo-feedback-sheet.danger {
+  background: var(--mimo-red-light);
+  border-top: 3px solid var(--mimo-red);
+}
+
+/* ==========================================================================
+   SCENARIO CHOICE CARD (3D SELECTION CARD)
+   ========================================================================== */
+.scenario-option-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #FFFFFF;
+  border: 2px solid var(--border-bold);
+  border-bottom: 5px solid #CBD5E1;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+
+.scenario-option-card:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+  border-bottom-color: #64748B;
+}
+
+.scenario-option-card.selected {
+  background: #EFF6FF;
+  border-color: var(--mimo-blue);
+  border-bottom-color: var(--mimo-blue-shadow);
+  color: var(--mimo-blue-dark);
+}
+
+.scenario-option-card.correct {
+  background: var(--mimo-green-light);
+  border-color: var(--mimo-green);
+  border-bottom-color: var(--mimo-green-shadow);
+  color: var(--mimo-green-dark);
+}
+
+.scenario-option-card.wrong {
+  background: var(--mimo-red-light);
+  border-color: var(--mimo-red);
+  border-bottom-color: var(--mimo-red-shadow);
+  color: var(--mimo-red-dark);
+}
+
+.scenario-option-key {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-bold);
+  background: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.scenario-option-card.selected .scenario-option-key {
+  background: var(--mimo-blue);
+  border-color: var(--mimo-blue);
+  color: #FFFFFF;
+}
+
+/* ==========================================================================
+   PROGRESS BAR
+   ========================================================================== */
+.mimo-progress-bar {
+  height: 16px;
+  background: #E2E8F0;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  position: relative;
+  flex: 1;
+}
+
+.mimo-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #22C55E 0%, #4ADE80 100%);
+  border-radius: var(--radius-pill);
+  transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+}
+
+.mimo-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  right: 6px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius-pill);
+}
+
+/* ==========================================================================
+   STEPPING STONE NODE (SNAKE PATH NODES)
+   ========================================================================== */
+.stepping-stone-node {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: transform 0.15s ease, filter 0.15s ease;
+  user-select: none;
+}
+
+.stepping-stone-node:hover {
+  transform: scale(1.08);
+}
+
+.stepping-stone-node.completed {
+  background: radial-gradient(circle at 35% 35%, #FDE047 0%, #EAB308 60%, #CA8A04 100%);
+  border-color: #FEF08A;
+  box-shadow: 0 8px 0 #A16207, 0 12px 20px rgba(202, 138, 4, 0.4);
+  color: #713F12;
+}
+
+.stepping-stone-node.active {
+  background: radial-gradient(circle at 35% 35%, #4ADE80 0%, #22C55E 60%, #16A34A 100%);
+  border-color: #BBF7D0;
+  box-shadow: 0 8px 0 #15803D, 0 12px 20px rgba(34, 197, 94, 0.5);
+  color: #FFFFFF;
+}
+
+.stepping-stone-node.locked {
+  background: #E2E8F0;
+  border-color: #F1F5F9;
+  box-shadow: 0 6px 0 #CBD5E1;
+  color: #94A3B8;
+  cursor: not-allowed;
+}
+
+.stepping-stone-node.chest {
+  background: radial-gradient(circle at 35% 35%, #F472B6 0%, #EC4899 60%, #DB2777 100%);
+  border-color: #FBCFE8;
+  box-shadow: 0 8px 0 #BE185D, 0 12px 20px rgba(236, 72, 153, 0.4);
+  color: #FFFFFF;
+}
+
+.stepping-stone-node.boss {
+  width: 90px;
+  height: 90px;
+  background: radial-gradient(circle at 35% 35%, #FB923C 0%, #F97316 60%, #EA580C 100%);
+  border-color: #FED7AA;
+  box-shadow: 0 8px 0 #C2410C, 0 14px 24px rgba(249, 115, 22, 0.5);
+  color: #FFFFFF;
+}

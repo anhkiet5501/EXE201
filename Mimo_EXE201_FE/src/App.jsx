@@ -1,30 +1,14 @@
-import React, { useState } from 'react';
-import MimoDashboard from './components/MimoDashboard';
-import MimoLandingPage from './components/MimoLandingPage';
-import MimoRegisterPage from './components/MimoRegisterPage';
-import './App.css'; 
+import React from 'react';
+import { RouterProvider } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { router } from './routes';
+import './App.css';
 
 function App() {
-  const [currentView, setCurrentView] = useState('landing'); // 'landing', 'register', 'dashboard'
-
   return (
-    <>
-      {currentView === 'dashboard' && <MimoDashboard />}
-      
-      {currentView === 'register' && (
-        <MimoRegisterPage 
-          onRegisterSuccess={() => setCurrentView('dashboard')}
-          onLoginClick={() => setCurrentView('dashboard')} // For now, login just goes to dashboard
-        />
-      )}
-      
-      {currentView === 'landing' && (
-        <MimoLandingPage 
-          onStart={() => setCurrentView('dashboard')} 
-          onRegisterClick={() => setCurrentView('register')}
-        />
-      )}
-    </>
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   );
 }
 
