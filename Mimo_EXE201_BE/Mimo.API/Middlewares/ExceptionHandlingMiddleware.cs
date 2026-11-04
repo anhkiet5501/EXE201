@@ -53,6 +53,7 @@ namespace Mimo.API.Middlewares
                         403 => "Forbidden",
                         404 => "Not Found",
                         409 => "Conflict",
+                        503 => "Service Unavailable",
                         _ => "Client Error"
                     };
                     break;

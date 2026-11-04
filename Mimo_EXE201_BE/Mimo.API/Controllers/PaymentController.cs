@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
@@ -24,13 +24,16 @@ namespace Mimo.API.Controllers
     {
         private readonly IPaymentService _paymentService;
         private readonly VnPayOptions _vnPayOptions;
+        private readonly IWebHostEnvironment _env;
 
         public PaymentController(
             IPaymentService paymentService,
-            IOptions<VnPayOptions> vnPayOptions)
+            IOptions<VnPayOptions> vnPayOptions,
+            IWebHostEnvironment env)
         {
             _paymentService = paymentService;
             _vnPayOptions = vnPayOptions.Value;
+            _env = env;
         }
 
         private Guid GetCurrentUserId()
@@ -90,10 +93,20 @@ namespace Mimo.API.Controllers
                 return SuccessResp.Ok(result);
             }
 
-            // Chuyển hướng trình duyệt về Frontend
-            var baseUrl = !string.IsNullOrEmpty(_vnPayOptions.FrontendReturnUrl)
-                ? _vnPayOptions.FrontendReturnUrl
-                : "http://localhost:5173/payment-result";
+            // Chuyển hướng trình duyệt về Frontend (Bắt buộc có FrontendReturnUrl ở Production)
+            var baseUrl = _vnPayOptions.FrontendReturnUrl;
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                if (!_env.IsDevelopment())
+                {
+                    throw new ServerFailureException("Cấu hình FrontendReturnUrl (Vnpay:FrontendReturnUrl) chưa được thiết lập cho môi trường Production.");
+                }
+                baseUrl = "http://localhost:5173/payment-result";
+            }
+            else if (!_env.IsDevelopment() && (baseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase) || baseUrl.Contains("127.0.0.1")))
+            {
+                throw new ServerFailureException("Cấu hình FrontendReturnUrl không được trỏ về localhost trong môi trường Production.");
+            }
 
             var redirectUrl = $"{baseUrl}?status={result.Status}" +
                               $"&txnRef={Uri.EscapeDataString(result.TxnRef)}" +

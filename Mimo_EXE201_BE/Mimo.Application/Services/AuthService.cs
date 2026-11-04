@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Mimo.Application.DTOs.Auth;
@@ -22,6 +22,7 @@ namespace Mimo.Application.Services
         private readonly ICacheService _cacheService;
         private readonly IGoogleAuthService _googleAuthService;
         private readonly ILogger<AuthService> _logger;
+        private readonly IMailService _mailService;
 
         public AuthService(
             IGenericRepository<User> userRepository,
@@ -33,6 +34,7 @@ namespace Mimo.Application.Services
             ICryptoService cryptoService,
             ICacheService cacheService,
             IGoogleAuthService googleAuthService,
+            IMailService mailService,
             ILogger<AuthService> logger)
         {
             _userRepository = userRepository;
@@ -44,6 +46,7 @@ namespace Mimo.Application.Services
             _cryptoService = cryptoService;
             _cacheService = cacheService;
             _googleAuthService = googleAuthService;
+            _mailService = mailService;
             _logger = logger;
         }
 
@@ -610,8 +613,98 @@ namespace Mimo.Application.Services
             return true;
         }
 
-        private static UserProfileDto MapToUserProfile(User user, string? roleName = null)
+        public async Task<string> ForgotPasswordAsync(ForgotPasswordRequestDto request)
         {
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+            // 1. Kiểm tra cấu hình dịch vụ gửi mail (SMTP) - nếu thiếu trả HTTP 503
+            if (!_mailService.IsConfigured())
+            {
+                throw new ServiceUnavailableException("Dịch vụ gửi email chưa được cấu hình trên hệ thống. Vui lòng liên hệ quản trị viên.");
+            }
+
+            // 2. Rate limit: Cooldown 60s
+            var cooldownKey = $"pwd_reset_cooldown:{normalizedEmail}";
+            if (await _cacheService.Exists(cooldownKey))
+            {
+                throw new BadRequestException("Vui lòng đợi 60 giây trước khi yêu cầu lại mã đặt lại mật khẩu.");
+            }
+
+            // 3. Rate limit: Tối đa 5 lần mỗi giờ
+            var hourlyKey = $"pwd_reset_hourly_count:{normalizedEmail}";
+            var hourlyCount = await _cacheService.Get<int?>(hourlyKey) ?? 0;
+            if (hourlyCount >= 5)
+            {
+                throw new BadRequestException("Bạn đã vượt quá giới hạn gửi yêu cầu đặt lại mật khẩu (tối đa 5 lần/giờ). Vui lòng thử lại sau.");
+            }
+
+            // Đặt cooldown 60s và tăng hourly count
+            await _cacheService.Set(cooldownKey, true, TimeSpan.FromSeconds(60));
+            await _cacheService.Set(hourlyKey, hourlyCount + 1, TimeSpan.FromHours(1));
+
+            var user = await _userRepository.FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+
+            // Luôn trả về cùng một thông điệp để tránh lộ thông tin email nào tồn tại
+            const string genericMessage = "Nếu email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.";
+            if (user == null)
+            {
+                return genericMessage;
+            }
+
+            // 4. Sinh reset token và lưu độc lập vào Cache (Redis) với TTL 1 giờ, KHÔNG ghi đè RefreshToken
+            var resetToken = _cryptoService.GenerateRandomToken(32);
+            await _cacheService.Set($"pwd_reset_token:{resetToken}", user.Id, TimeSpan.FromHours(1));
+
+            try
+            {
+                var subject = "[MIMO] Hướng dẫn đặt lại mật khẩu";
+                var body = $"Mã đặt lại mật khẩu của bạn là: <b>{resetToken}</b><br/>Mã có hiệu lực trong 1 giờ.<br/>Nếu bạn không yêu cầu, vui lòng bỏ qua email này.";
+                await _mailService.SendEmailAsync(user.Email, subject, body);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi gửi email đặt lại mật khẩu cho {Email}: {Message}", user.Email, ex.Message);
+                throw new ServiceUnavailableException("Không thể gửi email lúc này. Vui lòng thử lại sau.");
+            }
+
+            return genericMessage;
+        }
+
+        public async Task<string> ResetPasswordAsync(ResetPasswordRequestDto request)
+        {
+            var token = (request.Token ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(token))
+            {
+                throw new BadRequestException("Mã đặt lại mật khẩu không được để trống.");
+            }
+
+            // Lấy UserId từ Redis Cache
+            var tokenKey = $"pwd_reset_token:{token}";
+            var userId = await _cacheService.Get<Guid?>(tokenKey);
+            if (!userId.HasValue || userId.Value == Guid.Empty)
+            {
+                throw new BadRequestException("Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+            }
+
+            var user = await _userRepository.FirstOrDefaultAsync(u => u.Id == userId.Value);
+            if (user == null)
+            {
+                throw new NotFoundException("Không tìm thấy người dùng.");
+            }
+
+            user.Password = _cryptoService.HashPassword(request.NewPassword);
+            await _userRepository.UpdateAsync(user);
+
+            // Vô hiệu hóa token ngay sau khi dùng xong
+            await _cacheService.Remove(tokenKey);
+
+            // Thu hồi phiên đăng nhập cũ để buộc người dùng đăng nhập lại an toàn
+            await _cacheService.ForceLogout(user.Id);
+
+            return "Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại.";
+        }
+
+        private static UserProfileDto MapToUserProfile(User user, string? roleName = null)        {
             return new UserProfileDto
             {
                 Id = user.Id,

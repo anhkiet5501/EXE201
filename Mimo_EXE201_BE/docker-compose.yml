@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16-alpine
     container_name: mimo_postgres
@@ -62,9 +62,9 @@ services:
       - ENABLE_SWAGGER=true
       - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection:-Host=postgres;Port=5432;Database=mimo_db;Username=postgres;Password=123456}
       - ConnectionStrings__Redis=redis:6379
-      - Jwt__Secret=${JWT_SECRET:-0ebe2440a9eba77bed3a7a081b9bb26d792baaec3fcac1eae95b7148bfdcb8c5}
-      - Supabase__Url=${SUPABASE_URL:-https://axbejjdzsuelscpkuwab.supabase.co}
-      - Supabase__ApiKey=${SUPABASE_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF4YmVqamR6c3VlbHNjcGt1d2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI1OTQwMTAsImV4cCI6MjEwODE3MDAxMH0.PWiw41N00U2pcpap0WdUzZ1gaqMzVOBLhJDC_H1_XrU}
+      - Jwt__Secret=${JWT_SECRET}
+      - Supabase__Url=${SUPABASE_URL}
+      - Supabase__ApiKey=${SUPABASE_KEY}
       - Supabase__BucketName=${SUPABASE_BUCKET:-mimo-assets}
     ports:
       - "8080:8080"

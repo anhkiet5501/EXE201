@@ -115,6 +115,32 @@ namespace Mimo.API.Controllers
         }
 
         /// <summary>
+        /// Yêu cầu gửi hướng dẫn đặt lại mật khẩu qua email
+        /// </summary>
+        [HttpPost("forgot-password")]
+        [Consumes("application/json")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
+        {
+            var result = await _authService.ForgotPasswordAsync(request);
+            return SuccessResp.Ok(new { message = result });
+        }
+
+        /// <summary>
+        /// Đặt lại mật khẩu bằng mã token nhận qua email
+        /// </summary>
+        [HttpPost("reset-password")]
+        [Consumes("application/json")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+        {
+            var result = await _authService.ResetPasswordAsync(request);
+            return SuccessResp.Ok(new { message = result });
+        }
+
+        /// <summary>
         /// Đăng xuất - Thu hồi session hiện tại trên Redis và hủy Refresh Token
         /// </summary>
         [HttpPost("logout")]

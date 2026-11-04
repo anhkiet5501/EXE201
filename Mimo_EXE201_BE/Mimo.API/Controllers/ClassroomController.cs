@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,21 +73,20 @@ namespace Mimo.API.Controllers
         /// </summary>
         [HttpPost("leave")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> LeaveClassroom([FromQuery] Guid? classId, CancellationToken cancellationToken)
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> LeaveClassroom(
+            [FromQuery] Guid? classId,
+            [FromBody] LeaveClassRequestDto? request,
+            CancellationToken cancellationToken)
         {
+            var targetClassId = classId ?? request?.ClassId;
+            if (!targetClassId.HasValue || targetClassId.Value == Guid.Empty)
+            {
+                throw new BadRequestException("Vui lòng cung cấp mã lớp học (classId) muốn rời.");
+            }
+
             var userId = GetCurrentUserId();
-            if (classId.HasValue)
-            {
-                await _membershipService.LeaveClassAsync(userId, classId.Value, cancellationToken);
-            }
-            else
-            {
-                var myClassroom = await _membershipService.GetMyClassroomAsync(userId, cancellationToken);
-                if (myClassroom.Joined && myClassroom.ClassInfo != null)
-                {
-                    await _membershipService.LeaveClassAsync(userId, myClassroom.ClassInfo.Id, cancellationToken);
-                }
-            }
+            await _membershipService.LeaveClassAsync(userId, targetClassId.Value, cancellationToken);
             return SuccessResp.Ok("Đã rời khỏi lớp học thành công.");
         }
     }
