@@ -6,7 +6,7 @@ import axios from 'axios';
  */
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1',
-  timeout: 10000,
+  timeout: 45000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -34,6 +34,9 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('mimo_token');
       localStorage.removeItem('mimo_user');
       window.location.href = '/login';
+    }
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      error.message = 'Máy chủ đang phản hồi chậm hoặc đang khởi động lại (Cold Start). Vui lòng thử lại sau vài giây!';
     }
     return Promise.reject(error);
   }

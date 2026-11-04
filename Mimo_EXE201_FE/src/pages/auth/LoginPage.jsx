@@ -44,11 +44,13 @@ export default function LoginPage() {
   const handleQuickLoginAndNavigate = async (roleEmail, destinationPath) => {
     setError('');
     setLoading(true);
-    setEmail(roleEmail);
-    setPassword('123');
+    const targetEmail = (roleEmail === 'admin@mimo.com' || roleEmail === 'admin@mimo.app') ? 'admin@mimo.app' : roleEmail;
+    const targetPass = targetEmail === 'admin@mimo.app' ? 'Admin123!' : '123';
+    setEmail(targetEmail);
+    setPassword(targetPass);
 
     try {
-      const response = await authService.login(roleEmail, '123');
+      const response = await authService.login(targetEmail, targetPass);
       const { user, token } = response.data;
       login(user, token);
 
@@ -241,7 +243,7 @@ export default function LoginPage() {
                   type="button"
                   className="quick-role-badge"
                   style={{ background: '#FEF3C7', borderColor: '#FDE68A', color: '#B45309', fontWeight: 800 }}
-                  onClick={() => handleQuickLogin('admin@mimo.com', '/admin')}
+                  onClick={() => handleQuickLogin('admin@mimo.app', '/admin')}
                 >
                   ⚙️ Super Admin
                 </button>
