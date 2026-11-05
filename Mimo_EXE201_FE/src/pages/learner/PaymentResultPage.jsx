@@ -1,122 +1,175 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 import { paymentService } from '../../services/modules/paymentService';
+import { useAuth } from '../../contexts/AuthContext';
+import { getApiErrorMessage } from '../../services/api/mockConfig';
 
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 10;
+
+const getPlanName = (code) => {
+  const clean = String(code || '').toUpperCase().replace('MIMO_', '');
+  switch (clean) {
+    case 'PREMIUM_1M':
+      return 'Gói Mimo Pro 1 Tháng (Linh Hoạt)';
+    case 'PREMIUM_3M':
+      return 'Gói Mimo Pro 3 Tháng (Khuyên Dùng)';
+    case 'PREMIUM_6M':
+      return 'Gói Mimo Pro 6 Tháng (Tiết Kiệm Nhất)';
+    default:
+      return 'Gói Mimo Pro Nâng Cấp';
+  }
+};
+
+const shell = {
+  minHeight: '100vh',
+  background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+};
+
+const card = {
+  width: '100%',
+  maxWidth: '540px',
+  background: '#FFFFFF',
+  borderRadius: '28px',
+  padding: '40px 32px',
+  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1)',
+  textAlign: 'center',
+  position: 'relative',
+  overflow: 'hidden',
+};
+
+const primaryBtn = {
+  flex: 1,
+  padding: '14px',
+  borderRadius: '16px',
+  border: 'none',
+  background: 'linear-gradient(135deg, #0284C7, #0369A1)',
+  color: '#FFFFFF',
+  fontWeight: 800,
+  fontSize: '15px',
+  cursor: 'pointer',
+};
+
+const secondaryBtn = {
+  flex: 1,
+  padding: '14px',
+  borderRadius: '16px',
+  border: '1px solid #CBD5E1',
+  background: '#FFFFFF',
+  color: '#475569',
+  fontWeight: 800,
+  fontSize: '15px',
+  cursor: 'pointer',
+};
+
+const barColor = {
+  success: 'linear-gradient(90deg, #22C55E, #16A34A, #10B981)',
+  failed: 'linear-gradient(90deg, #EF4444, #DC2626)',
+  waiting: 'linear-gradient(90deg, #F59E0B, #D97706)',
+};
+
+/**
+ * Trang kết quả thanh toán.
+ * Trạng thái giao dịch LUÔN lấy từ Backend (theo txnRef), không tin tham số trên URL.
+ * status: loading | success | failed | timeout
+ */
 export default function PaymentResultPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
 
-  // Bóc tách tham số từ cả Backend redirect và VNPay direct callback
-  const vnpResponseCode = searchParams.get('vnp_ResponseCode');
-  const vnpAmountStr = searchParams.get('vnp_Amount');
-  const vnpTxnRef = searchParams.get('vnp_TxnRef');
+  const txnRef =
+    searchParams.get('txnRef') || searchParams.get('vnp_TxnRef') || searchParams.get('orderCode') || '';
+  const hasLegacyVnpParams = [...searchParams.keys()].some((k) => k.startsWith('vnp_'));
 
-  const statusParam = searchParams.get('status');
-  const isSuccess =
-    vnpResponseCode === '00' ||
-    (statusParam && statusParam.toLowerCase() === 'success') ||
-    (!vnpResponseCode && !statusParam); // Mặc định hiển thị thành công nếu vào trang kết quả
+  const [status, setStatus] = useState('loading');
+  const [tx, setTx] = useState(null);
+  const [message, setMessage] = useState('');
+  const [recheckKey, setRecheckKey] = useState(0);
+  const celebratedRef = useRef(false);
 
-  const txnRef = vnpTxnRef || searchParams.get('txnRef') || '';
+  const poll = useCallback(
+    async (isCancelled) => {
+      if (!txnRef) {
+        setStatus('failed');
+        setMessage('Không tìm thấy mã giao dịch. Nếu bạn đã chuyển tiền, vui lòng liên hệ hỗ trợ kèm thời gian giao dịch.');
+        return;
+      }
 
-  // Tính số tiền: Nếu có vnp_Amount từ VNPay thì chia 100, ngược lại lấy amount
-  let initialAmount = 0;
-  if (vnpAmountStr) {
-    initialAmount = Number(vnpAmountStr) / 100;
-  } else if (searchParams.get('amount')) {
-    initialAmount = Number(searchParams.get('amount'));
-  }
+      // Tương thích luồng VNPay cũ: để Backend xác thực chữ ký và ghi nhận kết quả
+      if (hasLegacyVnpParams && recheckKey === 0) {
+        try {
+          await paymentService.verifyVnPayReturn(window.location.search);
+        } catch (err) {
+          console.warn('Xác thực VNPay return:', getApiErrorMessage(err));
+        }
+      }
 
-  // Tự động suy luận gói nếu chưa có planCode dựa trên số tiền chuẩn
-  let initialPlanCode = searchParams.get('planCode') || '';
-  if (!initialPlanCode && initialAmount > 0) {
-    if (initialAmount === 399000) initialPlanCode = 'PREMIUM_6M';
-    else if (initialAmount === 219000) initialPlanCode = 'PREMIUM_3M';
-    else if (initialAmount === 79000) initialPlanCode = 'PREMIUM_1M';
-  }
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+        if (isCancelled()) return;
+        try {
+          const res = await paymentService.getPaymentHistory();
+          const list = Array.isArray(res?.data) ? res.data : [];
+          const found = list.find((t) => t.txnRef === txnRef);
 
-  const [amount, setAmount] = useState(initialAmount || 399000);
-  const [planCode, setPlanCode] = useState(initialPlanCode || 'PREMIUM_6M');
+          if (found) {
+            if (isCancelled()) return;
+            setTx(found);
+            if (found.status === 'Success') {
+              await refreshUser();
+              if (!isCancelled()) setStatus('success');
+              return;
+            }
+            if (found.status === 'Failed' || found.status === 'Refunded') {
+              setMessage('Giao dịch chưa được hoàn tất hoặc đã bị hủy. Tài khoản của bạn chưa bị trừ phí.');
+              setStatus('failed');
+              return;
+            }
+            // Pending -> tiếp tục chờ
+          }
+        } catch (err) {
+          console.warn('Không lấy được trạng thái giao dịch:', getApiErrorMessage(err));
+        }
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      }
 
-  // Tên gói hiển thị
-  const getPlanName = (code) => {
-    switch (code) {
-      case 'PREMIUM_1M':
-      case 'MIMO_PREMIUM_1M':
-        return 'Gói Mimo Pro 1 Tháng (Linh Hoạt)';
-      case 'PREMIUM_3M':
-      case 'MIMO_PREMIUM_3M':
-        return 'Gói Mimo Pro 3 Tháng (Khuyên Dùng)';
-      case 'PREMIUM_6M':
-      case 'MIMO_PREMIUM_6M':
-        return 'Gói Mimo Pro 6 Tháng (Tiết Kiệm Nhất)';
-      default:
-        return 'Gói Mimo Pro Nâng Cấp';
-    }
-  };
+      if (!isCancelled()) setStatus('timeout');
+    },
+    [txnRef, hasLegacyVnpParams, recheckKey, refreshUser]
+  );
 
   useEffect(() => {
-    // Nếu có query param từ VNPay, gọi Backend xác thực và đồng bộ DB ngầm
-    if (window.location.search && window.location.search.includes('vnp_')) {
-      paymentService
-        .verifyVnPayReturn(window.location.search)
-        .then((res) => {
-          const data = res?.data || res;
-          if (data?.amount) setAmount(Number(data.amount));
-          if (data?.planCode) setPlanCode(data.planCode);
-        })
-        .catch((err) => {
-          console.warn('Backend verification call notice:', err?.message);
-        });
-    }
+    let cancelled = false;
+    poll(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [poll]);
 
-    if (isSuccess) {
-      try {
-        sound.playVictory();
-        fireConfetti();
-
-        // Cập nhật trạng thái người dùng trong localStorage
-        const rawUser = localStorage.getItem('mimo_user');
-        const userObj = rawUser ? JSON.parse(rawUser) : { name: 'Học viên MIMO' };
-        userObj.isPlus = true;
-        userObj.isPro = true;
-        userObj.plan = planCode;
-        userObj.planName = getPlanName(planCode);
-        userObj.hearts = 5;
-        localStorage.setItem('mimo_user', JSON.stringify(userObj));
-      } catch (err) {
-        console.error('Lỗi khi cập nhật trạng thái người dùng:', err);
-      }
+  useEffect(() => {
+    if (status === 'success' && !celebratedRef.current) {
+      celebratedRef.current = true;
+      sound.playVictory();
+      fireConfetti();
     }
-  }, [isSuccess, planCode]);
+  }, [status]);
+
+  const handleRecheck = () => {
+    setStatus('loading');
+    setRecheckKey((k) => k + 1);
+  };
+
+  const barKey = status === 'success' ? 'success' : status === 'failed' ? 'failed' : 'waiting';
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '540px',
-          background: '#FFFFFF',
-          borderRadius: '28px',
-          padding: '40px 32px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255,255,255,0.1)',
-          textAlign: 'center',
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Thanh trang trí header */}
+    <div style={shell}>
+      <div style={card}>
         <div
           style={{
             position: 'absolute',
@@ -124,13 +177,44 @@ export default function PaymentResultPage() {
             left: 0,
             right: 0,
             height: '8px',
-            background: isSuccess
-              ? 'linear-gradient(90deg, #22C55E, #16A34A, #10B981)'
-              : 'linear-gradient(90deg, #EF4444, #DC2626)',
+            background: barColor[barKey],
           }}
         />
 
-        {isSuccess ? (
+        {status === 'loading' && (
+          <>
+            <div style={{ fontSize: '44px', marginBottom: '12px' }}>⏳</div>
+            <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#0F172A', margin: '0 0 8px 0' }}>
+              Đang xác nhận thanh toán...
+            </h1>
+            <p style={{ color: '#64748B', fontSize: '14.5px', margin: 0, lineHeight: 1.5 }}>
+              Vui lòng không đóng trang. Hệ thống đang chờ ngân hàng xác nhận giao dịch của bạn.
+            </p>
+          </>
+        )}
+
+        {status === 'timeout' && (
+          <>
+            <div style={{ fontSize: '44px', marginBottom: '12px' }}>🕒</div>
+            <h1 style={{ fontSize: '22px', fontWeight: 900, color: '#0F172A', margin: '0 0 10px 0' }}>
+              Chưa nhận được xác nhận
+            </h1>
+            <p style={{ color: '#64748B', fontSize: '14.5px', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+              Giao dịch có thể cần thêm ít phút để ngân hàng xác nhận. Nếu bạn đã thanh toán, gói Pro sẽ tự động
+              được kích hoạt khi hệ thống nhận được tiền.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={handleRecheck} style={primaryBtn}>
+                🔄 Kiểm tra lại
+              </button>
+              <button onClick={() => navigate('/learn')} style={secondaryBtn}>
+                Về Trang Học Tập
+              </button>
+            </div>
+          </>
+        )}
+
+        {status === 'success' && (
           <>
             <div
               style={{
@@ -164,18 +248,10 @@ export default function PaymentResultPage() {
                 border: '1px solid #BBF7D0',
               }}
             >
-              ✓ GIAO DỊCH VNPAY THÀNH CÔNG
+              ✓ GIAO DỊCH THÀNH CÔNG
             </span>
 
-            <h1
-              style={{
-                fontSize: '26px',
-                fontWeight: 900,
-                color: '#0F172A',
-                margin: '0 0 8px 0',
-                lineHeight: 1.25,
-              }}
-            >
+            <h1 style={{ fontSize: '26px', fontWeight: 900, color: '#0F172A', margin: '0 0 8px 0', lineHeight: 1.25 }}>
               Chúc Mừng Thành Viên Mimo Pro!
             </h1>
 
@@ -183,7 +259,6 @@ export default function PaymentResultPage() {
               Tài khoản của bạn đã được nâng cấp thành công. Toàn bộ đặc quyền không giới hạn đã sẵn sàng!
             </p>
 
-            {/* Chi tiết hóa đơn */}
             <div
               style={{
                 background: '#F8FAFC',
@@ -196,30 +271,29 @@ export default function PaymentResultPage() {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}>
                 <span style={{ color: '#64748B' }}>Gói đăng ký:</span>
-                <strong style={{ color: '#0F172A', fontWeight: 800 }}>{getPlanName(planCode)}</strong>
+                <strong style={{ color: '#0F172A', fontWeight: 800 }}>{getPlanName(tx?.planCode)}</strong>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}>
                 <span style={{ color: '#64748B' }}>Số tiền thanh toán:</span>
                 <strong style={{ color: '#16A34A', fontSize: '18px', fontWeight: 900 }}>
-                  {amount.toLocaleString('vi-VN')} đ
+                  {Number(tx?.amount || 0).toLocaleString('vi-VN')} đ
                 </strong>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '13.5px' }}>
-                <span style={{ color: '#64748B' }}>Cổng thanh toán:</span>
-                <span style={{ color: '#0284C7', fontWeight: 700 }}>VNPay Sandbox (Thẻ NCB)</span>
-              </div>
-
-              {txnRef && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
-                  <span style={{ color: '#94A3B8' }}>Mã tham chiếu:</span>
-                  <span style={{ color: '#64748B', fontFamily: 'monospace' }}>{txnRef}</span>
+              {tx?.paymentMethod && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '13.5px' }}>
+                  <span style={{ color: '#64748B' }}>Phương thức:</span>
+                  <span style={{ color: '#0284C7', fontWeight: 700 }}>{tx.paymentMethod}</span>
                 </div>
               )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                <span style={{ color: '#94A3B8' }}>Mã tham chiếu:</span>
+                <span style={{ color: '#64748B', fontFamily: 'monospace' }}>{txnRef}</span>
+              </div>
             </div>
 
-            {/* Danh sách đặc quyền đã kích hoạt */}
             <div
               style={{
                 background: '#FEF9C3',
@@ -259,7 +333,9 @@ export default function PaymentResultPage() {
               🚀 Bắt Đầu Học Với Mimo Pro Ngay →
             </button>
           </>
-        ) : (
+        )}
+
+        {status === 'failed' && (
           <>
             <div
               style={{
@@ -299,41 +375,14 @@ export default function PaymentResultPage() {
             </h1>
 
             <p style={{ color: '#64748B', fontSize: '14.5px', margin: '0 0 24px 0', lineHeight: 1.5 }}>
-              {message || 'Giao dịch qua VNPay chưa được hoàn tất hoặc đã bị hủy bởi người dùng. Tài khoản của bạn chưa bị trừ phí.'}
+              {message || 'Giao dịch chưa được hoàn tất hoặc đã bị hủy. Tài khoản của bạn chưa bị trừ phí.'}
             </p>
 
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={() => navigate('/learn/upgrade')}
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #0284C7, #0369A1)',
-                  color: '#FFFFFF',
-                  fontWeight: 800,
-                  fontSize: '15px',
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={() => navigate('/learn/upgrade')} style={primaryBtn}>
                 🔄 Thử Thanh Toán Lại
               </button>
-
-              <button
-                onClick={() => navigate('/learn')}
-                style={{
-                  flex: 1,
-                  padding: '14px',
-                  borderRadius: '16px',
-                  border: '1px solid #CBD5E1',
-                  background: '#FFFFFF',
-                  color: '#475569',
-                  fontWeight: 800,
-                  fontSize: '15px',
-                  cursor: 'pointer',
-                }}
-              >
+              <button onClick={() => navigate('/learn')} style={secondaryBtn}>
                 Về Trang Học Tập
               </button>
             </div>

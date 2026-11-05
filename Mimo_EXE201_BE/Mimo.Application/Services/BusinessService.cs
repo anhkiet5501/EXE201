@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
@@ -208,7 +208,13 @@ namespace Mimo.Application.Services
                 Grade = request.Grade,
                 Room = request.Room,
                 FocusTopic = request.FocusTopic,
-                MaxStudents = request.MaxStudents > 0 ? request.MaxStudents : 50,
+                MaxStudents = (request.MaxStudents.HasValue && request.MaxStudents.Value > 0)
+                    ? request.MaxStudents.Value
+                    : (request.TargetCount.HasValue && request.TargetCount.Value > 0)
+                        ? request.TargetCount.Value
+                        : (request.StudentsCount.HasValue && request.StudentsCount.Value > 0)
+                            ? request.StudentsCount.Value
+                            : 50,
                 Status = "Active"
             };
 
@@ -268,7 +274,7 @@ namespace Mimo.Application.Services
             };
         }
 
-        public async Task<ClassDto> AssignTeacherAsync(Guid userId, Guid classId, Guid educatorId, CancellationToken cancellationToken = default)
+        public async Task DeleteClassAsync(Guid userId, Guid classId, CancellationToken cancellationToken = default)
         {
             var orgId = await GetOrgIdAsync(userId);
             var cls = await _classRepository.FirstOrDefaultAsync(c => c.Id == classId && c.OrganizationId == orgId);
@@ -277,11 +283,65 @@ namespace Mimo.Application.Services
                 throw new NotFoundException("Không tìm thấy lớp học.");
             }
 
-            var educator = await _userRepository.FirstOrDefaultAsync(u => u.Id == educatorId);
+            var members = await _memberRepository.WhereAsync(cm => cm.ClassId == classId && cm.Status == "Enrolled");
+            if (members.Count > 0)
+            {
+                throw new BadRequestException("Không thể xóa lớp đang còn học sinh. Vui lòng chuyển hoặc rời học sinh trước.");
+            }
+
+            var assignments = await _assignmentRepository.WhereAsync(a => a.ClassId == classId);
+            if (assignments.Count > 0)
+            {
+                throw new BadRequestException("Không thể xóa lớp đang còn bài tập được giao. Vui lòng xóa bài tập trước.");
+            }
+
+            await _classRepository.DeleteAsync(cls);
+        }
+
+        public async Task<ClassDto> AssignTeacherAsync(Guid userId, Guid classId, AssignTeacherRequestDto request, CancellationToken cancellationToken = default)
+        {
+            var orgId = await GetOrgIdAsync(userId);
+            var cls = await _classRepository.FirstOrDefaultAsync(c => c.Id == classId && c.OrganizationId == orgId);
+            if (cls == null)
+            {
+                throw new NotFoundException("Không tìm thấy lớp học.");
+            }
+
+            User? educator = null;
+            if (request.EducatorId.HasValue && request.EducatorId.Value != Guid.Empty)
+            {
+                educator = await _userRepository.FirstOrDefaultAsync(u => u.Id == request.EducatorId.Value && u.OrganizationId == orgId);
+            }
+
+            if (educator == null && !string.IsNullOrWhiteSpace(request.TeacherId))
+            {
+                var teacherIdRaw = request.TeacherId.Trim();
+                if (Guid.TryParse(teacherIdRaw, out var teacherGuid))
+                {
+                    educator = await _userRepository.FirstOrDefaultAsync(u => u.Id == teacherGuid && u.OrganizationId == orgId);
+                }
+                else
+                {
+                    educator = await _userRepository.FirstOrDefaultAsync(u =>
+                        u.OrganizationId == orgId &&
+                        (u.Email.ToLower() == teacherIdRaw.ToLower() || u.Name.ToLower() == teacherIdRaw.ToLower()));
+                }
+            }
+
+            if (educator == null && !string.IsNullOrWhiteSpace(request.TeacherName))
+            {
+                var teacherNameRaw = request.TeacherName.Trim();
+                educator = await _userRepository.FirstOrDefaultAsync(u =>
+                    u.OrganizationId == orgId &&
+                    (u.Name.ToLower() == teacherNameRaw.ToLower() || u.Email.ToLower() == teacherNameRaw.ToLower()));
+            }
+
             if (educator == null)
             {
                 throw new NotFoundException("Không tìm thấy giáo viên.");
             }
+
+            var educatorId = educator.Id;
 
             cls.EducatorId = educatorId;
             await _classRepository.UpdateAsync(cls);
@@ -342,9 +402,30 @@ namespace Mimo.Application.Services
         {
             var orgId = await GetOrgIdAsync(userId);
 
+            // Resolve AssignedClassCodes (mã lớp dạng chuỗi từ FE) sang Guid
+            var requestedIds = new List<Guid>(request.AssignedClassIds ?? new List<Guid>());
+            if (request.AssignedClassCodes != null && request.AssignedClassCodes.Count > 0)
+            {
+                var orgClasses = await _classRepository.WhereAsync(c => c.OrganizationId == orgId);
+                foreach (var rawCode in request.AssignedClassCodes)
+                {
+                    var code = (rawCode ?? string.Empty).Trim();
+                    if (string.IsNullOrEmpty(code)) continue;
+                    if (Guid.TryParse(code, out var parsedId))
+                    {
+                        requestedIds.Add(parsedId);
+                        continue;
+                    }
+                    var matched = orgClasses.FirstOrDefault(c =>
+                        string.Equals(c.ClassCode, code, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(c.Name, code, StringComparison.OrdinalIgnoreCase));
+                    if (matched != null) requestedIds.Add(matched.Id);
+                }
+            }
+
             // Kiểm tra các classId thuộc org
-            var orgClasses = await _classRepository.WhereAsync(c => c.OrganizationId == orgId);
-            var validClassIds = orgClasses.Where(c => request.AssignedClassIds.Contains(c.Id)).Select(c => c.Id).ToList();
+            var orgClassesAll = await _classRepository.WhereAsync(c => c.OrganizationId == orgId);
+            var validClassIds = orgClassesAll.Where(c => requestedIds.Contains(c.Id)).Select(c => c.Id).ToList();
 
             const string chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
             string activationCode;
@@ -371,7 +452,7 @@ namespace Mimo.Application.Services
 
             license = await _licenseRepository.CreateAsync(license);
 
-            var classNames = orgClasses.Where(c => validClassIds.Contains(c.Id)).Select(c => c.Name).ToList();
+            var classNames = orgClassesAll.Where(c => validClassIds.Contains(c.Id)).Select(c => c.Name).ToList();
 
             return new TeacherLicenseDto
             {
@@ -404,12 +485,13 @@ namespace Mimo.Application.Services
 
         public async Task<ClaimLicenseResponseDto> ClaimTeacherKeyAsync(Guid userId, ClaimLicenseRequestDto request, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(request.ActivationCode))
+            var activationCode = (request.ActivationCode ?? request.LicenseKey ?? string.Empty).Trim().ToUpperInvariant();
+            if (string.IsNullOrWhiteSpace(activationCode))
             {
                 throw new BadRequestException("Vui lòng nhập mã kích hoạt bản quyền.");
             }
 
-            var code = request.ActivationCode.Trim().ToUpperInvariant();
+            var code = activationCode;
             var license = await _licenseRepository.FirstOrDefaultAsync(l => l.ActivationCode == code);
             if (license == null)
             {
@@ -615,7 +697,7 @@ namespace Mimo.Application.Services
                 });
             }
 
-            return new SkillGapReportDto { Domains = result };
+            return new SkillGapReportDto { IsSample = true, Domains = result };
         }
 
         public async Task<ClassHeatmapDto> GetClassHeatmapAsync(Guid userId, Guid classId, CancellationToken cancellationToken = default)
@@ -663,8 +745,9 @@ namespace Mimo.Application.Services
                 });
             }
 
+            bool isSample = heatmapItems.Count == 0;
             // Nếu chưa có dữ liệu thực tế câu trả lời của lớp, sinh mẫu minh họa sinh động
-            if (heatmapItems.Count == 0)
+            if (isSample)
             {
                 heatmapItems.Add(new QuestionHeatmapItemDto
                 {
@@ -705,6 +788,7 @@ namespace Mimo.Application.Services
             {
                 ClassId = cls.Id,
                 ClassName = cls.Name,
+                IsSample = isSample,
                 Questions = heatmapItems
             };
         }

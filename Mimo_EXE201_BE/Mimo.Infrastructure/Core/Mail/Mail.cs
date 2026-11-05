@@ -31,6 +31,11 @@ public class MailService : IMailService
         _smtpPassword = section["Password"] ?? "";
     }
 
+    public bool IsConfigured()
+    {
+        return !string.IsNullOrWhiteSpace(_smtpUsername) && !string.IsNullOrWhiteSpace(_smtpPassword);
+    }
+
     public async Task SendEmailAsync(string email, string subject, string message)
     {
         var mimeMessage = new MimeMessage();

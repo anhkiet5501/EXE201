@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { learnerService } from '../../services/modules/learnerService';
+import { getApiErrorMessage, isConnectionError } from '../../services/api/mockConfig';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 
 // Hàm chuẩn hóa câu hỏi từ Backend DTO về cấu trúc UI đa dạng
@@ -95,8 +96,16 @@ export default function LessonPlayPage() {
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [completionData, setCompletionData] = useState(null);
 
+  // Lỗi khi khởi tạo phiên học (hết tim, bài bị khóa, mất mạng...) và lỗi khi nộp đáp án / tổng kết
+  const [startError, setStartError] = useState(null); // { message, canRetry }
+  const [startAttempt, setStartAttempt] = useState(0);
+  const [actionError, setActionError] = useState('');
+  const checkingRef = useRef(false);
+  const completingRef = useRef(false);
+
   // Task B1: Khởi tạo phiên học từ Server
   useEffect(() => {
+    setStartError(null);
     learnerService.startLesson(lessonId, assignmentId).then((res) => {
       const data = res.data || res;
       setSessionId(data.sessionId);
@@ -115,8 +124,14 @@ export default function LessonPlayPage() {
       setQuestionStartTime(Date.now());
     }).catch((err) => {
       console.error('Không thể khởi tạo bài học:', err);
+      setStartError({
+        message: isConnectionError(err)
+          ? 'Máy chủ đang khởi động hoặc mất kết nối. Vui lòng thử lại sau vài giây!'
+          : getApiErrorMessage(err, 'Không thể bắt đầu bài học này.'),
+        canRetry: isConnectionError(err),
+      });
     });
-  }, [lessonId, assignmentId]);
+  }, [lessonId, assignmentId, startAttempt]);
 
   const questions = lessonData?.questions || [];
   const currentQ = questions[currentIndex];
@@ -152,8 +167,10 @@ export default function LessonPlayPage() {
   // Task B2: Kiểm tra đáp án qua Engine Backend
   const handleCheck = async () => {
     sound.init();
-    if (!currentQ || isChecking) return;
+    if (!currentQ || isChecking || checkingRef.current) return;
+    checkingRef.current = true;
     setIsChecking(true);
+    setActionError('');
 
     const timeSpent = Math.max(1, Math.round((Date.now() - questionStartTime) / 1000));
     let submittedAnswer = {};
@@ -168,7 +185,8 @@ export default function LessonPlayPage() {
       submittedAnswer = { selectedOptionId: trueFalseChoice ? 'true' : 'false' };
     }
 
-    const idempotencyKey = `${sessionId}_${currentQ.id}_${Date.now()}`;
+    // Khóa cố định theo phiên + câu hỏi: gửi lại cùng câu sẽ được server nhận ra là trùng
+    const idempotencyKey = `${sessionId}_${currentQ.id}`;
 
     try {
       const res = await learnerService.submitAnswer(
@@ -210,11 +228,14 @@ export default function LessonPlayPage() {
       }
     } catch (err) {
       console.error('Lỗi khi nộp câu trả lời lên server:', err);
-      // Fallback cục bộ nếu mất mạng
-      sound.playWrong();
-      setFeedbackStatus('wrong');
-      setHearts((prev) => Math.max(0, prev - 1));
+      // Không chấm "sai" và không trừ tim ở client: server chưa ghi nhận gì, người dùng có thể gửi lại
+      setActionError(
+        isConnectionError(err)
+          ? 'Mất kết nối tới máy chủ. Câu trả lời chưa được ghi nhận, hãy bấm KIỂM TRA để gửi lại.'
+          : getApiErrorMessage(err, 'Không thể gửi câu trả lời.')
+      );
     } finally {
+      checkingRef.current = false;
       setIsChecking(false);
     }
   };
@@ -230,22 +251,62 @@ export default function LessonPlayPage() {
       setTrueFalseChoice(null);
       setFeedbackStatus('idle');
       setServerExplanation('');
+      setActionError('');
       setQuestionStartTime(Date.now());
     } else {
       // Hoàn thành phiên học: Gọi POST /sessions/{id}/complete
+      if (completingRef.current) return;
+      completingRef.current = true;
+      setActionError('');
       try {
         const res = await learnerService.completeSession(sessionId);
         const data = res.data || res;
         setCompletionData(data);
       } catch (err) {
         console.warn('Lỗi khi tổng kết phiên học:', err);
+        // Chỉ ăn mừng khi server đã chốt phiên; nếu lỗi thì báo thật và cho thử lại
+        setActionError(
+          isConnectionError(err)
+            ? 'Chưa chốt được kết quả bài học do mất kết nối. Bấm lại để thử lần nữa.'
+            : getApiErrorMessage(err, 'Không thể hoàn thành bài học.')
+        );
+        completingRef.current = false;
+        return;
       }
+      completingRef.current = false;
 
       sound.playVictory();
       fireConfetti();
       setIsCompleted(true);
     }
   };
+
+  if (startError) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', boxSizing: 'border-box' }}>
+        <div style={{ maxWidth: '460px', textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '8px' }}>⚠️</div>
+          <h2 style={{ fontSize: '22px', fontWeight: 900, color: '#0F172A', margin: '0 0 8px 0' }}>Chưa thể vào bài học</h2>
+          <p style={{ color: '#64748B', fontSize: '14.5px', lineHeight: 1.5, margin: '0 0 24px 0' }}>{startError.message}</p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {startError.canRetry && (
+              <button className="btn-3d btn-3d-green" onClick={() => setStartAttempt((n) => n + 1)}>
+                THỬ LẠI
+              </button>
+            )}
+            {/tim/i.test(startError.message) && (
+              <button className="btn-3d btn-3d-green" onClick={() => navigate('/learn/practice')}>
+                ĐẾN PHÒNG ÔN TẬP
+              </button>
+            )}
+            <button className="btn-3d" onClick={() => navigate('/learn')}>
+              VỀ BẢN ĐỒ
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!lessonData || !currentQ) {
     return (
@@ -727,8 +788,8 @@ export default function LessonPlayPage() {
           {/* TRẠNG THÁI ①: CHỜ KIỂM TRA (IDLE) */}
           {feedbackStatus === 'idle' && (
             <>
-              <div style={{ fontSize: '14px', color: '#64748B', fontWeight: 600 }}>
-                💡 Hãy suy nghĩ kỹ trước khi quyết định!
+              <div style={{ fontSize: '14px', color: actionError ? '#B91C1C' : '#64748B', fontWeight: 600, maxWidth: '540px' }}>
+                {actionError ? `⚠️ ${actionError}` : '💡 Hãy suy nghĩ kỹ trước khi quyết định!'}
               </div>
               <button
                 disabled={!isCheckReady}
@@ -756,6 +817,9 @@ export default function LessonPlayPage() {
                 <div style={{ fontSize: '13.5px', color: '#166534', lineHeight: 1.4 }}>
                   {serverExplanation || currentQ.explanation}
                 </div>
+                {actionError && (
+                  <div style={{ fontSize: '13px', color: '#B91C1C', fontWeight: 700, marginTop: '6px' }}>⚠️ {actionError}</div>
+                )}
               </div>
               <button
                 onClick={handleContinue}
@@ -777,6 +841,9 @@ export default function LessonPlayPage() {
                 <div style={{ fontSize: '13.5px', color: '#991B1B', lineHeight: 1.4 }}>
                   {serverExplanation || currentQ.dangerAlert || currentQ.explanation}
                 </div>
+                {actionError && (
+                  <div style={{ fontSize: '13px', color: '#7F1D1D', fontWeight: 700, marginTop: '6px' }}>⚠️ {actionError}</div>
+                )}
               </div>
               <button
                 onClick={handleContinue}
