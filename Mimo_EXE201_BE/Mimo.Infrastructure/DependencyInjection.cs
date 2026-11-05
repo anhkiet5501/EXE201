@@ -41,17 +41,38 @@ public static class DependencyInjection
         services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
         services.AddScoped<IGoogleAuthService, Mimo.Infrastructure.Core.Auth.GoogleAuthService>();
 
-        // Redis & Cache Service
+        // In-Memory L1 Cache
+        services.AddMemoryCache();
+
+        // Redis & Resilient Cache Service
         var redisConn = configuration.GetConnectionString("Redis") 
             ?? configuration["Redis:ConnectionString"] 
             ?? "localhost:6379";
 
+        var enableRedis = !string.IsNullOrWhiteSpace(redisConn) 
+            && !redisConn.Equals("none", StringComparison.OrdinalIgnoreCase)
+            && !redisConn.Equals("disabled", StringComparison.OrdinalIgnoreCase);
+
         services.AddSingleton<IConnectionMultiplexer>(_ =>
         {
-            var options = ConfigurationOptions.Parse(redisConn);
-            options.AbortOnConnectFail = false;
-            options.ConnectTimeout = 5000;
-            return ConnectionMultiplexer.Connect(options);
+            if (!enableRedis)
+            {
+                return null!;
+            }
+
+            try
+            {
+                var options = ConfigurationOptions.Parse(redisConn);
+                options.AbortOnConnectFail = false;
+                options.ConnectTimeout = 1000;
+                options.SyncTimeout = 1000;
+                options.AsyncTimeout = 1000;
+                return ConnectionMultiplexer.Connect(options);
+            }
+            catch
+            {
+                return null!;
+            }
         });
 
         services.AddScoped<ICacheService, CacheService>();
