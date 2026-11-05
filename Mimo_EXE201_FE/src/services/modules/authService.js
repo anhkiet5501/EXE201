@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from '../api/endpoints';
 import { mockSuccess, mockError } from '../mocks/mockHelper';
 import { mockAccounts } from '../mocks/mockAuth';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
+import { USE_MOCK } from '../api/mockConfig';
 
 export const authService = {
   /**
@@ -97,25 +97,9 @@ export const authService = {
 
       return res;
     } catch (apiErr) {
-      console.warn('Backend login error, checking fallback demo accounts:', apiErr?.message);
-      const cleanEmail = (email || '').trim().toLowerCase();
-      const cleanPassword = (password || '').trim();
-      const found = mockAccounts.find(
-        (acc) => acc.email.toLowerCase() === cleanEmail && (acc.password === cleanPassword || cleanPassword === '123' || cleanPassword === 'admin123')
-      );
-
-      if (found) {
-        return mockSuccess({
-          token: `mock-token-${found.role.toLowerCase()}-${Date.now()}`,
-          user: {
-            id: found.id,
-            name: found.name,
-            email: found.email,
-            role: found.role,
-            avatar: found.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=User',
-          },
-        });
-      }
+      // Không còn fallback sang tài khoản mẫu: lỗi từ Backend (sai mật khẩu, mất mạng...) được báo đúng như thật.
+      // Chế độ mock chỉ chạy khi VITE_USE_MOCK=true (xử lý ở đầu hàm).
+      console.warn('Backend login error:', apiErr?.message);
       throw apiErr;
     }
   },

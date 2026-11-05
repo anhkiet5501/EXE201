@@ -64,9 +64,11 @@ import NotFound404 from '../pages/error/NotFound404';
 
 export const router = createBrowserRouter([
   // KẾT QUẢ THANH TOÁN VNPAY CALLBACK
+  // Phải đăng nhập: trạng thái giao dịch được lấy từ Backend theo tài khoản hiện tại
   {
     path: '/payment-result',
-    element: <PaymentResultPage />,
+    element: <RoleGuard />,
+    children: [{ index: true, element: <PaymentResultPage /> }],
   },
 
   // 1. CÁC TRANG CỘNG ĐỒNG / PUBLIC

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 import { learnerService } from '../../services/modules/learnerService';
+import { USE_MOCK, getApiErrorMessage } from '../../services/api/mockConfig';
 
 // Danh sách dự phòng nếu người dùng chưa từng làm sai câu nào
 const defaultPracticeQuestions = [
@@ -42,6 +43,7 @@ export default function PracticeRoomPage() {
   const [serverExplanation, setServerExplanation] = useState('');
   const [isFromBackend, setIsFromBackend] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Task B5: Lấy danh sách câu sai từ Backend
   useEffect(() => {
@@ -79,6 +81,7 @@ export default function PracticeRoomPage() {
     sound.init();
     if (!selectedOpt || isChecking) return;
     setIsChecking(true);
+    setSubmitError('');
 
     try {
       const res = await learnerService.submitPracticeAnswer({
@@ -104,8 +107,13 @@ export default function PracticeRoomPage() {
         setCorrectStreak(0);
       }
     } catch (err) {
-      console.warn('Lỗi khi nộp bài ôn tập lên server, fallback giả lập:', err);
-      // Fallback
+      console.warn('Lỗi khi nộp bài ôn tập lên server:', err);
+      if (!USE_MOCK) {
+        // Không giả lập kết quả: hồi tim/XP chỉ có giá trị khi server đã ghi nhận
+        setSubmitError(getApiErrorMessage(err, 'Không gửi được đáp án lên máy chủ. Vui lòng thử lại.'));
+        return;
+      }
+      // Chế độ mock (VITE_USE_MOCK=true): giả lập cục bộ
       if (selectedOpt === 'B') {
         sound.playVictory();
         fireConfetti();
@@ -138,6 +146,11 @@ export default function PracticeRoomPage() {
 
   return (
     <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {submitError && (
+        <div style={{ padding: '12px 16px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', color: '#B91C1C', fontSize: '13.5px' }}>
+          ⚠️ {submitError}
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>

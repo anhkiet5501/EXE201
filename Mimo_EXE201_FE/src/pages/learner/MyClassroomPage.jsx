@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 import { learnerService } from '../../services/modules/learnerService';
+import { getApiErrorMessage } from '../../services/api/mockConfig';
 import TeacherClassroomView from './TeacherClassroomView';
 
 export default function MyClassroomPage() {
@@ -88,7 +89,7 @@ export default function MyClassroomPage() {
       })
       .catch((err) => {
         sound.playWrong();
-        setErrorMsg(err.response?.data?.message || err.message || 'Mã lớp không hợp lệ hoặc đã hết hạn. Hãy kiểm tra lại!');
+        setErrorMsg(getApiErrorMessage(err, 'Mã lớp không hợp lệ hoặc đã hết hạn. Hãy kiểm tra lại!'));
       })
       .finally(() => {
         setLoading(false);
@@ -100,6 +101,8 @@ export default function MyClassroomPage() {
     learnerService.leaveClassroom().then(() => {
       fetchClassroom();
       if (refreshData) refreshData();
+    }).catch((err) => {
+      setErrorMsg(getApiErrorMessage(err, 'Không thể rời lớp học lúc này. Vui lòng thử lại.'));
     });
   };
 

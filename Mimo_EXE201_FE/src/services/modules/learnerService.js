@@ -1,82 +1,76 @@
 import apiClient from '../api/apiClient';
 import { API_ENDPOINTS } from '../api/endpoints';
+import { USE_MOCK } from '../api/mockConfig';
 import { mockSuccess } from '../mocks/mockHelper';
 import { mockLearnerData, mockLessonCutQuestions, mockClassroomsDatabase } from '../mocks/mockLearner';
 
-// Mặc định cho phép fallback mock data khi chạy local demo nếu backend chưa sẵn sàng
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+/**
+ * Gọi API thật. Chỉ khi chạy chế độ mock (VITE_USE_MOCK=true) mới rơi về dữ liệu mẫu khi lỗi.
+ * Ở chế độ thường, lỗi từ Backend được ném ra để giao diện báo đúng cho người dùng
+ * (không còn hiển thị dữ liệu giả như thể là dữ liệu thật).
+ */
+const withMockFallback = async (realCall, mockFactory, label = 'API') => {
+  if (!USE_MOCK) {
+    return realCall();
+  }
+  try {
+    return await realCall();
+  } catch (err) {
+    console.warn(`[MOCK MODE] ${label} lỗi, dùng dữ liệu mẫu:`, err?.message);
+    return mockFactory();
+  }
+};
 
 export const learnerService = {
   // -------------------------------------------------------------
   // NHÁNH A: CÂY KỸ NĂNG & LỘ TRÌNH HỌC (CURRICULUM)
   // -------------------------------------------------------------
 
-  /**
-   * Task A1: Lấy danh sách các chủ đề kỹ năng lớn (Domains)
-   * GET /api/v1/domains
-   */
+  /** GET /api/v1/domains */
   async getDomains() {
-    try {
-      const res = await apiClient.get(API_ENDPOINTS.CURRICULUM.DOMAINS);
-      return res;
-    } catch (err) {
-      console.warn('Lỗi khi tải danh sách chủ đề, dùng fallback mock:', err);
-      return mockSuccess(mockLearnerData.domains || []);
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.CURRICULUM.DOMAINS),
+      () => mockSuccess(mockLearnerData.domains || []),
+      'getDomains'
+    );
   },
 
-  /**
-   * Task A2: Lấy bản đồ lộ trình học tập (Learning Path / Skill Tree)
-   * GET /api/v1/path?domainId=...
-   */
+  /** GET /api/v1/path?domainId=... */
   async getLearningPath(domainId = null) {
-    try {
-      const res = await apiClient.get(API_ENDPOINTS.CURRICULUM.PATH(domainId));
-      return res;
-    } catch (err) {
-      console.warn('Lỗi khi tải lộ trình học, dùng fallback mock:', err);
-      return mockSuccess(mockLearnerData);
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.CURRICULUM.PATH(domainId)),
+      () => mockSuccess(mockLearnerData),
+      'getLearningPath'
+    );
   },
 
-  /**
-   * Task A1: Lấy chi tiết chặng kỹ năng kèm danh sách bài học
-   * GET /api/v1/units/{id}
-   */
+  /** GET /api/v1/units/{id} */
   async getUnitDetail(unitId) {
-    try {
-      return await apiClient.get(API_ENDPOINTS.CURRICULUM.UNIT_DETAIL(unitId));
-    } catch (err) {
-      console.warn('Lỗi khi tải chi tiết chặng, dùng fallback mock:', err);
-      return mockSuccess({});
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.CURRICULUM.UNIT_DETAIL(unitId)),
+      () => mockSuccess({}),
+      'getUnitDetail'
+    );
   },
 
   // -------------------------------------------------------------
   // NHÁNH C: BẢNG XẾP HẠNG TUẦN (WEEKLY LEADERBOARD)
   // -------------------------------------------------------------
 
-  /**
-   * Task C1: Lấy Bảng xếp hạng tuần hiện tại (Top 30 + vị trí của người dùng hiện tại)
-   * GET /api/v1/leaderboard/current
-   */
+  /** GET /api/v1/leaderboard/current */
   async getWeeklyLeaderboard() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.LEADERBOARD.CURRENT);
-    } catch (err) {
-      console.warn('Lỗi khi tải bảng xếp hạng, dùng fallback mock:', err);
-      return mockSuccess(mockLearnerData.leaderboard || {});
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.LEADERBOARD.CURRENT),
+      () => mockSuccess(mockLearnerData.leaderboard || {}),
+      'getWeeklyLeaderboard'
+    );
   },
 
   // -------------------------------------------------------------
   // PHÂN HỆ MEDIA & SUPABASE STORAGE
   // -------------------------------------------------------------
 
-  /**
-   * Tải lên ảnh đại diện và lưu vào Supabase Storage
-   * POST /api/v1/media/upload/avatar
-   */
+  /** POST /api/v1/media/upload/avatar */
   async uploadAvatar(file) {
     const formData = new FormData();
     formData.append('file', file);
@@ -87,10 +81,7 @@ export const learnerService = {
     });
   },
 
-  /**
-   * Tải lên hình ảnh/GIF câu hỏi tình huống (Curator/Admin)
-   * POST /api/v1/media/upload/question-image
-   */
+  /** POST /api/v1/media/upload/question-image */
   async uploadQuestionImage(file) {
     const formData = new FormData();
     formData.append('file', file);
@@ -102,48 +93,38 @@ export const learnerService = {
   },
 
   async getDashboardData() {
-    try {
-      // Ưu tiên gọi API thật
+    const realCall = async () => {
       const [domainsRes, pathRes] = await Promise.all([
-        apiClient.get(API_ENDPOINTS.CURRICULUM.DOMAINS).catch(() => null),
-        apiClient.get(API_ENDPOINTS.CURRICULUM.PATH()).catch(() => null),
+        apiClient.get(API_ENDPOINTS.CURRICULUM.DOMAINS),
+        apiClient.get(API_ENDPOINTS.CURRICULUM.PATH()),
       ]);
 
-      if (domainsRes?.data && pathRes?.data) {
-        return {
-          data: {
-            ...mockLearnerData,
-            domains: domainsRes.data,
-            learningPath: pathRes.data,
-            units: pathRes.data.units || [],
-          },
-        };
-      }
-    } catch {
-      // ignore
-    }
-    return mockSuccess(mockLearnerData);
+      return {
+        data: {
+          ...mockLearnerData,
+          domains: domainsRes?.data,
+          learningPath: pathRes?.data,
+          units: pathRes?.data?.units || [],
+        },
+      };
+    };
+
+    return withMockFallback(realCall, () => mockSuccess(mockLearnerData), 'getDashboardData');
   },
 
   async getLessonDetail(lessonId) {
+    const mockLesson = () =>
+      mockSuccess({
+        id: lessonId,
+        title: 'Bài 2: Vết thương chảy máu & Cầm máu',
+        unitTitle: 'Chặng 1: Xử lý Vết thương & Bỏng sinh hoạt',
+        questions: mockLessonCutQuestions,
+      });
+
     if (USE_MOCK) {
-      return mockSuccess({
-        id: lessonId,
-        title: 'Bài 2: Vết thương chảy máu & Cầm máu',
-        unitTitle: 'Chặng 1: Xử lý Vết thương & Bỏng sinh hoạt',
-        questions: mockLessonCutQuestions,
-      });
+      return mockLesson();
     }
-    try {
-      return await apiClient.get(API_ENDPOINTS.LEARNER.LESSON_DETAIL(lessonId));
-    } catch {
-      return mockSuccess({
-        id: lessonId,
-        title: 'Bài 2: Vết thương chảy máu & Cầm máu',
-        unitTitle: 'Chặng 1: Xử lý Vết thương & Bỏng sinh hoạt',
-        questions: mockLessonCutQuestions,
-      });
-    }
+    return apiClient.get(API_ENDPOINTS.LEARNER.LESSON_DETAIL(lessonId));
   },
 
   // -------------------------------------------------------------
@@ -151,43 +132,47 @@ export const learnerService = {
   // -------------------------------------------------------------
 
   /**
-   * Task B1: Khởi tạo phiên học mới cho Node bài học
+   * Khởi tạo phiên học mới cho Node bài học.
    * POST /api/v1/lessons/{nodeId}/start
+   * Lỗi từ Backend (hết tim, bài bị khóa, chưa xuất bản, mất mạng...) được ném ra nguyên vẹn.
    */
   async startLesson(nodeId, assignmentId = null) {
-    // Map mock IDs sang GUIDs đã seed trong BE nếu cần
+    if (!USE_MOCK) {
+      return apiClient.post(API_ENDPOINTS.GAMEPLAY.START_LESSON(nodeId), {
+        assignmentId: assignmentId || null,
+      });
+    }
+
+    // Chế độ mock: ánh xạ ID mẫu sang GUID đã seed và cho phép fallback offline
     let targetNodeId = nodeId;
     const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nodeId);
     if (!isGuid) {
       if (nodeId === 'les_burn_1') targetNodeId = 'c1111111-1111-1111-1111-111111111111';
       else if (nodeId === 'les_cut_2') targetNodeId = 'c2222222-2222-2222-2222-222222222222';
-      else targetNodeId = 'c1111111-1111-1111-1111-111111111111'; // Fallback node 1
+      else targetNodeId = 'c1111111-1111-1111-1111-111111111111';
     }
 
-    try {
-      return await apiClient.post(API_ENDPOINTS.GAMEPLAY.START_LESSON(targetNodeId), {
-        assignmentId: assignmentId || null,
-      });
-    } catch (error) {
-      console.warn('Gọi startLesson API thất bại, fallback sang mock data:', error);
-      // Fallback cho chế độ offline nếu BE chưa có token
-      return mockSuccess({
-        sessionId: `mock-session-${Date.now()}`,
-        nodeId: targetNodeId,
-        nodeTitle: 'Bài 1.1: Bỏng nước sôi sinh hoạt & chập điện',
-        heartsRemaining: 5,
-        isPro: false,
-        questions: mockLessonCutQuestions,
-      });
-    }
+    return withMockFallback(
+      () =>
+        apiClient.post(API_ENDPOINTS.GAMEPLAY.START_LESSON(targetNodeId), {
+          assignmentId: assignmentId || null,
+        }),
+      () =>
+        mockSuccess({
+          sessionId: `mock-session-${Date.now()}`,
+          nodeId: targetNodeId,
+          nodeTitle: 'Bài 1.1: Bỏng nước sôi sinh hoạt & chập điện',
+          heartsRemaining: 5,
+          isPro: false,
+          questions: mockLessonCutQuestions,
+        }),
+      'startLesson'
+    );
   },
 
-  /**
-   * Task B2: Nộp câu trả lời để Engine server chấm điểm
-   * POST /api/v1/sessions/{id}/answer
-   */
+  /** POST /api/v1/sessions/{id}/answer */
   async submitAnswer(sessionId, { questionId, submittedAnswer, timeSpentSeconds = 10 }, idempotencyKey = null) {
-    if (sessionId?.startsWith('mock-session-')) {
+    if (USE_MOCK && sessionId?.startsWith('mock-session-')) {
       return mockSuccess({
         questionId,
         isCorrect: true,
@@ -216,12 +201,9 @@ export const learnerService = {
     );
   },
 
-  /**
-   * Task B4: Tổng kết phiên học, nhận thưởng Perfect Lesson & cập nhật Streak
-   * POST /api/v1/sessions/{id}/complete
-   */
+  /** POST /api/v1/sessions/{id}/complete */
   async completeSession(sessionId) {
-    if (sessionId?.startsWith('mock-session-')) {
+    if (USE_MOCK && sessionId?.startsWith('mock-session-')) {
       return mockSuccess({
         sessionId,
         status: 'completed',
@@ -247,23 +229,16 @@ export const learnerService = {
   // NHÁNH B: PHÒNG ÔN TẬP & HỒI TIM
   // -------------------------------------------------------------
 
-  /**
-   * Task B5: Lấy danh sách câu hỏi làm sai cần ôn tập
-   * GET /api/v1/practice/wrong-questions
-   */
+  /** GET /api/v1/practice/wrong-questions */
   async getWrongQuestions() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.PRACTICE.WRONG_QUESTIONS);
-    } catch (error) {
-      console.warn('Lấy wrong-questions từ API thất bại, fallback danh sách mẫu:', error);
-      return mockSuccess([]);
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.PRACTICE.WRONG_QUESTIONS),
+      () => mockSuccess([]),
+      'getWrongQuestions'
+    );
   },
 
-  /**
-   * Task B5: Nộp đáp án ôn tập để hồi tim và nhận XP
-   * POST /api/v1/practice/answer
-   */
+  /** POST /api/v1/practice/answer */
   async submitPracticeAnswer({ questionId, submittedAnswer, timeSpentSeconds = 10 }) {
     return await apiClient.post(API_ENDPOINTS.PRACTICE.SUBMIT_ANSWER, {
       questionId,
@@ -276,24 +251,29 @@ export const learnerService = {
     if (USE_MOCK) {
       return mockSuccess({ success: true, message: 'Nhận thưởng thành công!' });
     }
-    return apiClient.post('/api/learner/quests/claim', { questId });
+    return apiClient.post(API_ENDPOINTS.QUESTS.CLAIM(questId));
   },
 
   async getMyClassroom() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.CLASSROOM.ME);
-    } catch (err) {
-      console.warn('API My Classroom fallback to mock:', err);
-      return mockSuccess(mockLearnerData.classroom);
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.CLASSROOM.ME),
+      () => mockSuccess(mockLearnerData.classroom),
+      'getMyClassroom'
+    );
   },
 
   async joinClassroom(code) {
+    const realCall = () => apiClient.post(API_ENDPOINTS.CLASSROOM.JOIN, { code, classCode: code });
+
+    if (!USE_MOCK) {
+      // Giữ nguyên thông điệp lỗi thật của Backend (mã sai, hết ghế, lớp đầy...)
+      return realCall();
+    }
+
     try {
-      const res = await apiClient.post(API_ENDPOINTS.CLASSROOM.JOIN, { code, classCode: code });
-      return res;
+      return await realCall();
     } catch (err) {
-      console.warn('API Join Classroom fallback to mock:', err);
+      console.warn('[MOCK MODE] API Join Classroom lỗi, dùng dữ liệu mẫu:', err?.message);
       const normalizedCode = (code || '').trim().toUpperCase();
       const targetClass = mockClassroomsDatabase[normalizedCode];
 
@@ -321,39 +301,39 @@ export const learnerService = {
         });
       }
 
-      const error = new Error('Mã lớp học không hợp lệ hoặc không tồn tại trong hệ thống liên kết!');
-      throw error;
+      throw new Error('Mã lớp học không hợp lệ hoặc không tồn tại trong hệ thống liên kết!');
     }
   },
 
   async leaveClassroom() {
-    try {
-      return await apiClient.post(API_ENDPOINTS.CLASSROOM.LEAVE);
-    } catch (err) {
-      console.warn('API Leave Classroom fallback to mock:', err);
-      mockLearnerData.classroom = {
-        joined: false,
-        classInfo: null,
-        assignments: [],
-      };
-      return mockSuccess({ success: true, message: 'Đã rời lớp học thành công' });
-    }
+    return withMockFallback(
+      () => apiClient.post(API_ENDPOINTS.CLASSROOM.LEAVE),
+      () => {
+        mockLearnerData.classroom = {
+          joined: false,
+          classInfo: null,
+          assignments: [],
+        };
+        return mockSuccess({ success: true, message: 'Đã rời lớp học thành công' });
+      },
+      'leaveClassroom'
+    );
   },
 
   // -------------------------------------------------------------
   // 6. NHIỆM VỤ HÀNG NGÀY (DAILY QUESTS)
   // -------------------------------------------------------------
   async getDailyQuests() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.QUESTS.DAILY);
-    } catch (err) {
-      console.warn('Lỗi khi tải nhiệm vụ ngày, dùng fallback mock:', err);
-      return mockSuccess({
-        dateKey: new Date().toISOString().split('T')[0],
-        resetInSeconds: 3600,
-        quests: [],
-      });
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.QUESTS.DAILY),
+      () =>
+        mockSuccess({
+          dateKey: new Date().toISOString().split('T')[0],
+          resetInSeconds: 3600,
+          quests: [],
+        }),
+      'getDailyQuests'
+    );
   },
 
   async claimDailyQuest(questId) {
@@ -364,18 +344,18 @@ export const learnerService = {
   // 7. CỬA HÀNG ĐỔI THƯỞNG (SHOP REWARDS)
   // -------------------------------------------------------------
   async getShopItems() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.SHOP.ITEMS);
-    } catch (err) {
-      console.warn('Lỗi khi tải cửa hàng, dùng fallback mock:', err);
-      return mockSuccess({
-        totalXp: 0,
-        hearts: 5,
-        streakFreezeCount: 0,
-        isPro: false,
-        items: [],
-      });
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.SHOP.ITEMS),
+      () =>
+        mockSuccess({
+          totalXp: 0,
+          hearts: 5,
+          streakFreezeCount: 0,
+          isPro: false,
+          items: [],
+        }),
+      'getShopItems'
+    );
   },
 
   async purchaseShopItem(itemId) {
@@ -386,24 +366,22 @@ export const learnerService = {
   // 8. HUY HIỆU DANH HIỆU (ACHIEVEMENTS)
   // -------------------------------------------------------------
   async getAchievements() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.ACHIEVEMENTS.LIST);
-    } catch (err) {
-      console.warn('Lỗi khi tải danh sách huy hiệu, dùng fallback mock:', err);
-      return mockSuccess({ totalBadges: 8, unlockedBadgesCount: 0, badges: [] });
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.ACHIEVEMENTS.LIST),
+      () => mockSuccess({ totalBadges: 8, unlockedBadgesCount: 0, badges: [] }),
+      'getAchievements'
+    );
   },
 
   // -------------------------------------------------------------
   // 9. CẨM NANG AN TOÀN SỐNG (SAFETY HANDBOOK)
   // -------------------------------------------------------------
   async getHandbook(pillar = null, search = null) {
-    try {
-      return await apiClient.get(API_ENDPOINTS.HANDBOOK.LIST(pillar, search));
-    } catch (err) {
-      console.warn('Lỗi khi tải cẩm nang an toàn, dùng fallback mock:', err);
-      return mockSuccess({ pillars: [], emergencyHotlines: [], articles: [] });
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.HANDBOOK.LIST(pillar, search)),
+      () => mockSuccess({ pillars: [], emergencyHotlines: [], articles: [] }),
+      'getHandbook'
+    );
   },
 
   async getHandbookArticle(id) {
@@ -414,20 +392,20 @@ export const learnerService = {
   // 10. HỒ SƠ THẬT & THỐNG KÊ HỌC TẬP (PROFILE & STUDY STATS)
   // -------------------------------------------------------------
   async getStudyStats() {
-    try {
-      return await apiClient.get(API_ENDPOINTS.USERS.STUDY_STATS);
-    } catch (err) {
-      console.warn('Lỗi khi tải thống kê học tập thật, dùng fallback mock:', err);
-      return mockSuccess({
-        totalMinutesLearned: 0,
-        totalLessonsCompleted: 0,
-        totalXp: 0,
-        currentStreak: 0,
-        weeklyStats: [],
-        skillRadar: [],
-        recentBadges: [],
-      });
-    }
+    return withMockFallback(
+      () => apiClient.get(API_ENDPOINTS.USERS.STUDY_STATS),
+      () =>
+        mockSuccess({
+          totalMinutesLearned: 0,
+          totalLessonsCompleted: 0,
+          totalXp: 0,
+          currentStreak: 0,
+          weeklyStats: [],
+          skillRadar: [],
+          recentBadges: [],
+        }),
+      'getStudyStats'
+    );
   },
 
   async updateProfile(profileData) {
