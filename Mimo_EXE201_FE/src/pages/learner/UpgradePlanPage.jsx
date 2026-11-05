@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 import { paymentService } from '../../services/modules/paymentService';
 import apiClient from '../../services/api/apiClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { getApiErrorMessage } from '../../services/api/mockConfig';
 import { API_ENDPOINTS } from '../../services/api/endpoints';
 
 // Hàm chuẩn hóa nhận diện gói cước linh hoạt
@@ -57,6 +59,7 @@ const resolvePlanCode = (userObj) => {
 
 export default function UpgradePlanPage() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   // Tab chuyển đổi chính học theo phong cách ChatGPT: 'personal' (Cá nhân) | 'business' (Tổ chức / Doanh nghiệp)
   const [audienceTab, setAudienceTab] = useState('personal');
 
@@ -64,9 +67,13 @@ export default function UpgradePlanPage() {
   const [activePlan, setActivePlan] = useState('FREE'); // 'FREE' | 'PREMIUM_1M' | 'PREMIUM_3M' | 'PREMIUM_6M' | 'B2B_SCHOOL'
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPlanDetails, setSelectedPlanDetails] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isVnPayLoading, setIsVnPayLoading] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  // Đơn chuyển khoản SePay (QR VietQR). Trạng thái thanh toán luôn do Backend xác nhận.
+  const [order, setOrder] = useState(null);
+  const [orderError, setOrderError] = useState('');
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
   // Form liên hệ tư vấn B2B
   const [showB2BConsultModal, setShowB2BConsultModal] = useState(false);
@@ -319,6 +326,22 @@ export default function UpgradePlanPage() {
     },
   ];
 
+  const createOrderFor = useCallback(async (plan) => {
+    setOrder(null);
+    setOrderError('');
+    setIsCreatingOrder(true);
+    try {
+      const res = await paymentService.createOrder(plan.id || plan.code);
+      const data = res?.data || res;
+      setOrder(data);
+    } catch (err) {
+      console.error('Lỗi tạo đơn thanh toán:', err);
+      setOrderError(getApiErrorMessage(err, 'Không thể tạo đơn thanh toán. Vui lòng thử lại.'));
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  }, []);
+
   const handleOpenPayment = (plan) => {
     sound.playClick();
     if (plan.type === 'NAVIGATE_BUSINESS') {
@@ -333,82 +356,55 @@ export default function UpgradePlanPage() {
     setSelectedPlanDetails(plan);
     setShowPaymentModal(true);
     setPaymentSuccess(false);
+    createOrderFor(plan);
   };
 
-  const handlePayWithVnPay = async () => {
-    if (!selectedPlanDetails) return;
-    setIsVnPayLoading(true);
-    sound.playClick();
-    try {
-      const planCode = selectedPlanDetails.id || selectedPlanDetails.code;
-      const res = await paymentService.createVnPayUrl(planCode);
-      const paymentUrl = res?.data?.paymentUrl || res?.paymentUrl;
-      if (paymentUrl) {
-        window.location.href = paymentUrl;
-      } else {
-        alert('Không nhận được liên kết thanh toán từ cổng VNPay. Vui lòng thử lại!');
-      }
-    } catch (err) {
-      console.error('Lỗi khởi tạo thanh toán VNPay:', err);
-      const errorMsg =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        err.message ||
-        'Không thể kết nối đến cổng thanh toán VNPay.';
-      alert(errorMsg);
-    } finally {
-      setIsVnPayLoading(false);
-    }
+  const handleClosePayment = () => {
+    setShowPaymentModal(false);
+    setOrder(null);
+    setOrderError('');
   };
 
-  const handleConfirmMockPayment = async () => {
-    if (!selectedPlanDetails) return;
-    setIsProcessing(true);
-    sound.playClick();
-    try {
-      const planCode = selectedPlanDetails.id || selectedPlanDetails.code;
-      let data = null;
-      try {
-        // Gọi API Backend lưu dữ liệu thật vào Database Supabase
-        const res = await paymentService.mockActivatePlan(planCode);
-        data = res?.data || res;
-      } catch (apiErr) {
-        console.warn('Backend mock-activate response info:', apiErr?.response?.data || apiErr?.message);
-      }
+  // Hỏi Backend trạng thái đơn mỗi 3 giây khi đang hiện mã QR. Chỉ khi Backend báo Success mới cấp quyền Pro.
+  useEffect(() => {
+    if (!showPaymentModal || !order?.txnRef || paymentSuccess) return undefined;
 
-      // Cập nhật trạng thái người dùng trong localStorage và State
+    let cancelled = false;
+    const timer = setInterval(async () => {
       try {
-        const rawUser = localStorage.getItem('mimo_user');
-        const userObj = rawUser ? JSON.parse(rawUser) : { name: 'Học viên MIMO' };
-        userObj.isPlus = true;
-        userObj.isPro = true;
-        userObj.plan = selectedPlanDetails.id;
-        userObj.planCode = selectedPlanDetails.id;
-        userObj.planName = selectedPlanDetails.name;
-        if (data?.proExpiresAt) {
-          userObj.proExpiresAt = data.proExpiresAt;
+        const res = await paymentService.getOrderStatus(order.txnRef);
+        const data = res?.data || res;
+        if (!cancelled && data?.status === 'Success') {
+          cancelled = true;
+          clearInterval(timer);
+          await refreshUser();
+          setActivePlan(order.planCode);
+          setPaymentSuccess(true);
+          sound.playVictory();
+          fireConfetti();
         }
-        localStorage.setItem('mimo_user', JSON.stringify(userObj));
-        setActivePlan(selectedPlanDetails.id);
-      } catch (storageErr) {
-        console.error('Lỗi cập nhật localStorage:', storageErr);
+      } catch (err) {
+        console.warn('Chưa lấy được trạng thái đơn:', getApiErrorMessage(err));
       }
+    }, 3000);
 
-      setIsProcessing(false);
-      setPaymentSuccess(true);
-      sound.playVictory();
-      fireConfetti();
-    } catch (err) {
-      console.error('Lỗi khi kích hoạt giả lập gói:', err);
-      setIsProcessing(false);
-      const errorMsg =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        err.message ||
-        'Không thể kích hoạt gói cước.';
-      alert(`Lỗi kích hoạt: ${errorMsg}`);
-    }
-  };
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [showPaymentModal, order, paymentSuccess, refreshUser]);
+
+  // Đếm ngược thời hạn đơn
+  useEffect(() => {
+    if (!order?.expiresAt) return undefined;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((new Date(order.expiresAt).getTime() - Date.now()) / 1000));
+      setSecondsLeft(diff);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [order]);
 
   const handleB2BConsultSubmit = (e) => {
     e.preventDefault();
@@ -964,7 +960,7 @@ export default function UpgradePlanPage() {
             zIndex: 99999,
             padding: '16px',
           }}
-          onClick={() => setShowPaymentModal(false)}
+          onClick={handleClosePayment}
         >
           <div
             onClick={(e) => e.stopPropagation()}
@@ -980,7 +976,7 @@ export default function UpgradePlanPage() {
             }}
           >
             <button
-              onClick={() => setShowPaymentModal(false)}
+              onClick={handleClosePayment}
               style={{
                 position: 'absolute',
                 top: '18px',
@@ -1005,107 +1001,141 @@ export default function UpgradePlanPage() {
                   Nâng Cấp {selectedPlanDetails.name}
                 </h3>
                 <p style={{ color: '#64748B', fontSize: '14px', margin: '0 0 18px 0' }}>
-                  {selectedPlanDetails.targetDescription}
+                  Quét mã QR bằng app ngân hàng bất kỳ. Gói Pro tự động kích hoạt ngay khi hệ thống nhận được tiền.
                 </p>
 
-                <div
-                  style={{
-                    background: '#F8FAFC',
-                    border: '2px dashed #CBD5E1',
-                    borderRadius: '20px',
-                    padding: '20px',
-                    marginBottom: '20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div
-                    style={{
-                      background: '#FFFFFF',
-                      padding: '12px',
-                      borderRadius: '16px',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
-                      marginBottom: '12px',
-                    }}
-                  >
-                    <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=2|99|0987654321|MIMO%20APP|mimo@fpt.edu.vn|0|0|${selectedPlanDetails.price}|MIMO%20${selectedPlanDetails.id}%20UPGRADE`}
-                      alt="VietQR Code"
-                      style={{ width: '180px', height: '180px', display: 'block' }}
-                    />
+                {isCreatingOrder && (
+                  <div style={{ padding: '40px 0', color: '#0284C7', fontWeight: 700 }}>⏳ Đang tạo mã thanh toán...</div>
+                )}
+
+                {orderError && !isCreatingOrder && (
+                  <div style={{ padding: '16px 0' }}>
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        borderRadius: '12px',
+                        color: '#B91C1C',
+                        fontSize: '13.5px',
+                        marginBottom: '14px',
+                      }}
+                    >
+                      {orderError}
+                    </div>
+                    <button
+                      onClick={() => createOrderFor(selectedPlanDetails)}
+                      style={{
+                        padding: '12px 22px',
+                        borderRadius: '14px',
+                        border: 'none',
+                        background: '#0284C7',
+                        color: '#fff',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Thử lại
+                    </button>
                   </div>
+                )}
 
-                  <div style={{ fontSize: '13.5px', color: '#64748B' }}>
-                    Số tiền thanh toán:{' '}
-                    <strong style={{ fontSize: '20px', color: '#0F172A' }}>
-                      {selectedPlanDetails.price.toLocaleString('vi-VN')} đ
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#0284C7', fontWeight: 700, marginTop: '4px' }}>
-                    Cổng thanh toán: PayOS / VietQR Napas 24/7 ({selectedPlanDetails.shortDuration})
-                  </div>
-                </div>
+                {order && !isCreatingOrder && (
+                  <>
+                    <div
+                      style={{
+                        background: '#F8FAFC',
+                        border: '2px dashed #CBD5E1',
+                        borderRadius: '20px',
+                        padding: '20px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div
+                        style={{
+                          background: '#FFFFFF',
+                          padding: '12px',
+                          borderRadius: '16px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
+                          marginBottom: '12px',
+                          opacity: secondsLeft > 0 ? 1 : 0.35,
+                        }}
+                      >
+                        <img
+                          src={order.qrUrl}
+                          alt="Mã QR chuyển khoản VietQR"
+                          style={{ width: '220px', height: '220px', display: 'block', objectFit: 'contain' }}
+                        />
+                      </div>
 
-                {/* NÚT THANH TOÁN CHÍNH QUA CỔNG VNPAY SANDBOX */}
-                <button
-                  onClick={handlePayWithVnPay}
-                  disabled={isVnPayLoading || isProcessing}
-                  style={{
-                    width: '100%',
-                    padding: '16px',
-                    borderRadius: '16px',
-                    border: 'none',
-                    background: isVnPayLoading
-                      ? '#94A3B8'
-                      : 'linear-gradient(135deg, #005BAA 0%, #ED1C24 100%)',
-                    color: '#FFFFFF',
-                    fontWeight: 900,
-                    fontSize: '15.5px',
-                    cursor: isVnPayLoading ? 'wait' : 'pointer',
-                    boxShadow: '0 8px 20px rgba(237, 28, 36, 0.3)',
-                    marginBottom: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {isVnPayLoading ? (
-                    '⏳ Đang kết nối Cổng VNPay...'
-                  ) : (
-                    <>
-                      <span>💳</span> Thanh Toán Qua Cổng VNPay Sandbox
-                    </>
-                  )}
-                </button>
+                      <div style={{ fontSize: '13.5px', color: '#64748B' }}>
+                        Số tiền:{' '}
+                        <strong style={{ fontSize: '20px', color: '#0F172A' }}>
+                          {Number(order.amount).toLocaleString('vi-VN')} đ
+                        </strong>
+                      </div>
 
-                <div style={{ fontSize: '12px', color: '#64748B', marginBottom: '14px' }}>
-                  🛡️ Hỗ trợ thẻ ATM NCB test &amp; quét mã QR bảo mật chuẩn VNPay Sandbox
-                </div>
+                      <div style={{ fontSize: '12.5px', color: secondsLeft > 0 ? '#0284C7' : '#DC2626', fontWeight: 700, marginTop: '6px' }}>
+                        {secondsLeft > 0
+                          ? `⏱ Mã hết hạn sau ${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`
+                          : 'Mã đã hết hạn'}
+                      </div>
+                    </div>
 
-                {/* NÚT GIẢ LẬP THANH TOÁN NỘI BỘ DỰ PHÒNG */}
-                <button
-                  onClick={handleConfirmMockPayment}
-                  disabled={isProcessing || isVnPayLoading}
-                  style={{
-                    width: '100%',
-                    padding: '11px',
-                    borderRadius: '14px',
-                    border: '1px solid #E2E8F0',
-                    background: '#F8FAFC',
-                    color: '#64748B',
-                    fontWeight: 700,
-                    fontSize: '13px',
-                    cursor: isProcessing ? 'wait' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {isProcessing
-                    ? '⏳ Đang xác thực giả lập...'
-                    : '⚡ Giả lập quét mã thanh toán nhanh (Demo nội bộ)'}
-                </button>
+                    <div
+                      style={{
+                        textAlign: 'left',
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '14px',
+                        padding: '12px 14px',
+                        fontSize: '13px',
+                        color: '#475569',
+                        lineHeight: 1.7,
+                        marginBottom: '14px',
+                      }}
+                    >
+                      <div>Ngân hàng: <strong style={{ color: '#0F172A' }}>{order.bankCode}</strong></div>
+                      <div>Số tài khoản: <strong style={{ color: '#0F172A' }}>{order.accountNumber}</strong></div>
+                      {order.accountName && (
+                        <div>Chủ tài khoản: <strong style={{ color: '#0F172A' }}>{order.accountName}</strong></div>
+                      )}
+                      <div>
+                        Nội dung chuyển khoản:{' '}
+                        <strong style={{ color: '#B45309', fontFamily: 'monospace', fontSize: '15px' }}>{order.transferContent}</strong>
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: '12px', color: '#B45309', background: '#FEF9C3', border: '1px solid #FDE047', borderRadius: '10px', padding: '8px 10px', marginBottom: '12px' }}>
+                      ⚠️ Giữ nguyên <strong>nội dung chuyển khoản</strong> và <strong>số tiền</strong> để hệ thống tự nhận diện.
+                    </div>
+
+                    {secondsLeft > 0 ? (
+                      <div style={{ fontSize: '12.5px', color: '#64748B' }}>⏳ Đang chờ thanh toán... (tự động cập nhật)</div>
+                    ) : (
+                      <button
+                        onClick={() => createOrderFor(selectedPlanDetails)}
+                        style={{
+                          padding: '12px 22px',
+                          borderRadius: '14px',
+                          border: 'none',
+                          background: '#0284C7',
+                          color: '#fff',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Tạo mã mới
+                      </button>
+                    )}
+                    <div style={{ fontSize: '11.5px', color: '#94A3B8', marginTop: '10px' }}>
+                      Đã chuyển khoản nhưng mã hết hạn? Gói vẫn được kích hoạt khi tiền về, bạn không cần chuyển lại.
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div style={{ padding: '20px 0' }}>
@@ -1118,7 +1148,7 @@ export default function UpgradePlanPage() {
                 </p>
                 <button
                   onClick={() => {
-                    setShowPaymentModal(false);
+                    handleClosePayment();
                     navigate('/learn');
                   }}
                   style={{

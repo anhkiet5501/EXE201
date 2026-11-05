@@ -149,11 +149,11 @@ export const API_ENDPOINTS = {
     REFUND: (id) => `/admin/monetization/refund/${id}`,
   },
 
-  // 5. Cổng thanh toán (Payment VNPay & Subscription)
+  // 5. Thanh toán chuyển khoản SePay (VietQR) & lịch sử giao dịch
   PAYMENT: {
-    CREATE_VNPAY_URL: '/payment/create-vnpay-url',
+    CREATE_ORDER: '/payment/create-order',
+    ORDER_STATUS: (txnRef) => `/payment/order/${encodeURIComponent(txnRef)}`,
     VNPAY_RETURN: '/payment/vnpay-return',
-    MOCK_ACTIVATE: '/payment/mock-activate',
     HISTORY: '/payment/history',
   },
 
