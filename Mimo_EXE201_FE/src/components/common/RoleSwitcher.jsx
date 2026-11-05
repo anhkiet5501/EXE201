@@ -107,7 +107,7 @@ export default function RoleSwitcher() {
         bottom: '20px',
         right: '20px',
         zIndex: 999999,
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: 'var(--font-family)',
       }}
     >
       {/* Menu xổ lên chọn 4 Phân hệ */}

@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mimo.Application.DTOs;
 using Mimo.Application.DTOs.Payment;
@@ -25,18 +28,21 @@ namespace Mimo.API.Controllers
         private readonly IPaymentService _paymentService;
         private readonly VnPayOptions _vnPayOptions;
         private readonly IWebHostEnvironment _env;
-        private readonly IConfiguration _configuration;
+        private readonly SePayOptions _sePayOptions;
+        private readonly ILogger<PaymentController> _logger;
 
         public PaymentController(
             IPaymentService paymentService,
             IOptions<VnPayOptions> vnPayOptions,
+            IOptions<SePayOptions> sePayOptions,
             IWebHostEnvironment env,
-            IConfiguration configuration)
+            ILogger<PaymentController> logger)
         {
             _paymentService = paymentService;
             _vnPayOptions = vnPayOptions.Value;
+            _sePayOptions = sePayOptions.Value;
             _env = env;
-            _configuration = configuration;
+            _logger = logger;
         }
 
         private Guid GetCurrentUserId()
@@ -147,32 +153,73 @@ namespace Mimo.API.Controllers
         }
 
         /// <summary>
-        /// Kích hoạt giả lập gói Mimo Pro (dành cho môi trường test/demo nội bộ) và lưu thẳng vào Database
+        /// Tạo đơn chuyển khoản (SePay + VietQR) cho gói Mimo Pro: trả về mã đơn, nội dung chuyển khoản và URL mã QR.
         /// </summary>
-        [HttpPost("mock-activate")]
+        [HttpPost("create-order")]
         [Protected]
         [Consumes("application/json")]
-        [ProducesResponseType(typeof(PaymentResultDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(PaymentOrderDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> MockActivatePlan(
-            [FromBody] CreatePaymentRequestDto request,
+        [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> CreateOrder(
+            [FromBody] CreateOrderRequestDto request,
             CancellationToken cancellationToken)
         {
-            // Chỉ cho phép ở Development, hoặc khi bật rõ ràng bằng cấu hình Payment:AllowMockActivate=true.
-            // Mặc định TẮT ở Staging/Production để người dùng không tự cấp Pro cho mình.
-            if (!_env.IsDevelopment() && !_configuration.GetValue<bool>("Payment:AllowMockActivate"))
-            {
-                throw new ForbiddenException("Chức năng kích hoạt giả lập đã bị vô hiệu hóa ở môi trường này.");
-            }
-
-            if (string.IsNullOrWhiteSpace(request.PlanCode))
-            {
-                throw new BadRequestException("PlanCode không được để trống.");
-            }
-
-            var userId = GetCurrentUserId();
-            var result = await _paymentService.MockActivatePlanAsync(userId, request.PlanCode, cancellationToken);
+            var result = await _paymentService.CreateOrderAsync(GetCurrentUserId(), request, cancellationToken);
             return SuccessResp.Ok(result);
+        }
+
+        /// <summary>
+        /// Trạng thái đơn thanh toán của người dùng hiện tại (FE gọi định kỳ để biết tiền đã về chưa).
+        /// </summary>
+        [HttpGet("order/{txnRef}")]
+        [Protected]
+        [ProducesResponseType(typeof(OrderStatusDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetOrderStatus(string txnRef, CancellationToken cancellationToken)
+        {
+            var result = await _paymentService.GetOrderStatusAsync(GetCurrentUserId(), txnRef, cancellationToken);
+            return SuccessResp.Ok(result);
+        }
+
+        /// <summary>
+        /// Webhook SePay (server-to-server) khi có biến động số dư. Xác thực bằng header "Authorization: Apikey {key}".
+        /// Mọi trường hợp hợp lệ (kể cả bỏ qua/trùng) trả 200 {"success": true} để SePay không gửi lại; lỗi hệ thống trả 5xx để SePay gửi lại.
+        /// </summary>
+        [HttpPost("sepay-webhook")]
+        [Consumes("application/json")]
+        public async Task<IActionResult> SePayWebhook(
+            [FromBody] SePayWebhookDto payload,
+            CancellationToken cancellationToken)
+        {
+            if (!IsValidSePayApiKey(Request.Headers.Authorization.ToString()))
+            {
+                _logger.LogWarning("Webhook SePay bị từ chối: sai hoặc thiếu API Key.");
+                return new JsonResult(new { success = false, message = "Unauthorized" }) { StatusCode = StatusCodes.Status401Unauthorized };
+            }
+
+            var outcome = await _paymentService.ProcessSePayWebhookAsync(payload, cancellationToken);
+            return new JsonResult(new { success = true, outcome = outcome.ToString() });
+        }
+
+        private bool IsValidSePayApiKey(string authorizationHeader)
+        {
+            var expected = _sePayOptions.ApiKey;
+            if (string.IsNullOrWhiteSpace(expected))
+            {
+                // Chưa cấu hình khóa: từ chối tất cả, tránh để webhook mở cho người ngoài
+                return false;
+            }
+
+            const string scheme = "Apikey ";
+            if (string.IsNullOrWhiteSpace(authorizationHeader) ||
+                !authorizationHeader.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var provided = authorizationHeader.Substring(scheme.Length).Trim();
+            return CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(provided), Encoding.UTF8.GetBytes(expected));
         }
     }
 }

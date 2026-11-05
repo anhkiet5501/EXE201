@@ -1,5 +1,4 @@
 /* src/index.css */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
 
 :root {
   --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
@@ -11,9 +10,17 @@
   --primary-hover: #764ba2;
 }
 
+/* Nút, ô nhập liệu... mặc định không kế thừa font: ép dùng chung font của ứng dụng */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--bg-gradient);
   color: var(--text-color);
   min-height: 100vh;
