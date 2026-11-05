@@ -5,6 +5,7 @@ namespace Mimo.Application.Services;
 
 public interface ICacheService
 {
+    bool IsConnected { get; }
     Task<T?> Get<T>(string key);
     Task Set<T>(string key, T value);
     Task Set<T>(string key, T value, TimeSpan expiration);

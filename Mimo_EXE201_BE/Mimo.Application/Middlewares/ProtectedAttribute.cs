@@ -39,13 +39,13 @@ public class ProtectedAttribute : Attribute, IAsyncAuthorizationFilter
                 return;
             }
 
-            // Kiểm tra trạng thái phiên làm việc (Session) trong Redis
+            // Kiểm tra trạng thái phiên làm việc (Session) trong Redis nếu có kết nối
             if (payload.SessionId != Guid.Empty)
             {
                 try
                 {
                     var cacheService = context.HttpContext.RequestServices.GetService<ICacheService>();
-                    if (cacheService != null)
+                    if (cacheService != null && cacheService.IsConnected)
                     {
                         var isSessionActive = await cacheService.Exists($"ss:{payload.UserId}:{payload.SessionId}");
                         if (!isSessionActive)
