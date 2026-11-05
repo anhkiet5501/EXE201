@@ -1,0 +1,55 @@
+name: MIMO System Keep-Alive & Health Ping
+
+on:
+  # Lên lịch tự động chạy mỗi 30 phút
+  schedule:
+    - cron: '*/30 * * * *'
+  # Cho phép bấm nút "Run workflow" thủ công trên giao diện GitHub Actions
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    name: Ping Backend & Database Health
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping Backend API & Supabase Database
+        run: |
+          echo "=================================================="
+          echo "Starting Keep-Alive Ping at $(date)"
+          echo "Target: https://mimo-be-api.onrender.com/health"
+          echo "=================================================="
+          
+          # Gửi HTTP GET tới endpoint /health của Backend trên Render
+          # Endpoint này sẽ kiểm tra DbContext.Database.CanConnectAsync() với Supabase PostgreSQL
+          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}\n%{time_total}" https://mimo-be-api.onrender.com/health)
+          
+          # Tách response body, status code và thời gian phản hồi
+          BODY=$(echo "$HTTP_RESPONSE" | sed '$d' | sed '$d')
+          STATUS_CODE=$(echo "$HTTP_RESPONSE" | tail -n 2 | head -n 1)
+          TOTAL_TIME=$(echo "$HTTP_RESPONSE" | tail -n 1)
+          
+          echo "HTTP Status Code: $STATUS_CODE"
+          echo "Total Response Time: ${TOTAL_TIME}s"
+          echo "Response Body:"
+          echo "$BODY"
+          echo "--------------------------------------------------"
+          
+          if [ "$STATUS_CODE" -eq 200 ]; then
+            echo "✅ Backend và Supabase Database đang hoạt động bình thường (Healthy)!"
+          else
+            echo "⚠️ Backend hoặc Supabase trả về trạng thái bất thường: HTTP $STATUS_CODE"
+          fi
+
+      - name: Ping Frontend Vercel Web App
+        run: |
+          echo "Pinging Frontend: https://mimo-education.vercel.app"
+          FE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://mimo-education.vercel.app)
+          echo "Frontend HTTP Status: $FE_STATUS"
+          if [ "$FE_STATUS" -eq 200 ] || [ "$FE_STATUS" -eq 307 ] || [ "$FE_STATUS" -eq 308 ]; then
+            echo "✅ Frontend Vercel hoạt động bình thường!"
+          else
+            echo "⚠️ Frontend trả về mã: $FE_STATUS"
+          fi
+
