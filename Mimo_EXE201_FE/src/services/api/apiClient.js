@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { USE_MOCK } from './mockConfig';
 
 /**
  * Axios Client kết nối với Backend thật.
@@ -29,7 +30,8 @@ apiClient.interceptors.response.use(
   (response) => response.data,
   (error) => {
     const token = localStorage.getItem('mimo_token');
-    const isMock = token && token.startsWith('mock-token-');
+    // Token mock chỉ được phép tồn tại khi chạy chế độ mock; nếu không thì coi như phiên không hợp lệ
+    const isMock = USE_MOCK && token && token.startsWith('mock-token-');
     if (error.response?.status === 401 && !isMock && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('mimo_token');
       localStorage.removeItem('mimo_user');

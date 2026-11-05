@@ -12,7 +12,8 @@ namespace Mimo.Application.Services
         Task<List<ClassDto>> GetClassesAsync(Guid userId, CancellationToken cancellationToken = default);
         Task<ClassDto> CreateClassAsync(Guid userId, CreateClassRequestDto request, CancellationToken cancellationToken = default);
         Task<ClassDto> UpdateClassAsync(Guid userId, Guid classId, UpdateClassRequestDto request, CancellationToken cancellationToken = default);
-        Task<ClassDto> AssignTeacherAsync(Guid userId, Guid classId, Guid educatorId, CancellationToken cancellationToken = default);
+        Task DeleteClassAsync(Guid userId, Guid classId, CancellationToken cancellationToken = default);
+        Task<ClassDto> AssignTeacherAsync(Guid userId, Guid classId, AssignTeacherRequestDto request, CancellationToken cancellationToken = default);
         Task<List<TeacherLicenseDto>> GetTeacherKeysAsync(Guid userId, CancellationToken cancellationToken = default);
         Task<TeacherLicenseDto> GenerateTeacherKeyAsync(Guid userId, CreateTeacherLicenseRequestDto request, CancellationToken cancellationToken = default);
         Task RevokeTeacherKeyAsync(Guid userId, Guid keyId, CancellationToken cancellationToken = default);

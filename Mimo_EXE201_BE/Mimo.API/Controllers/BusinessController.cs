@@ -87,7 +87,7 @@ namespace Mimo.API.Controllers
         public async Task<IActionResult> AssignTeacher([FromRoute] Guid id, [FromBody] AssignTeacherRequestDto request, CancellationToken cancellationToken)
         {
             var userId = GetCurrentUserId();
-            var result = await _businessService.AssignTeacherAsync(userId, id, request.EducatorId, cancellationToken);
+            var result = await _businessService.AssignTeacherAsync(userId, id, request, cancellationToken);
             return SuccessResp.Ok(result);
         }
 
@@ -109,7 +109,17 @@ namespace Mimo.API.Controllers
             return SuccessResp.Ok(result);
         }
 
+        [HttpDelete("classes/{id}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> DeleteClass([FromRoute] Guid id, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            await _businessService.DeleteClassAsync(userId, id, cancellationToken);
+            return SuccessResp.Ok("Xóa lớp học thành công.");
+        }
+
         [HttpDelete("teachers/keys/{id}")]
+        [HttpPost("teachers/keys/{id}/revoke")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> RevokeTeacherKey([FromRoute] Guid id, CancellationToken cancellationToken)
         {

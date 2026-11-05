@@ -49,8 +49,13 @@ namespace Mimo.Application.DTOs.Business
         public string? Grade { get; set; }
         public string? Room { get; set; }
         public string? FocusTopic { get; set; }
-        public int MaxStudents { get; set; } = 50;
+        public int? MaxStudents { get; set; }
         public Guid? EducatorId { get; set; }
+
+        // Alias tương thích frontend cũ: code do FE gửi (BE tự sinh mã nên chỉ ghi nhận), targetCount/studentsCount map sang MaxStudents
+        public string? Code { get; set; }
+        public int? TargetCount { get; set; }
+        public int? StudentsCount { get; set; }
     }
 
     public class UpdateClassRequestDto
@@ -65,7 +70,9 @@ namespace Mimo.Application.DTOs.Business
 
     public class AssignTeacherRequestDto
     {
-        public Guid EducatorId { get; set; }
+        public Guid? EducatorId { get; set; }
+        public string? TeacherId { get; set; }
+        public string? TeacherName { get; set; }
     }
 
     public class TeacherLicenseDto
@@ -85,12 +92,14 @@ namespace Mimo.Application.DTOs.Business
     {
         public string? Note { get; set; }
         public List<Guid> AssignedClassIds { get; set; } = new();
+        public List<string>? AssignedClassCodes { get; set; }
         public int ExpiresInDays { get; set; } = 365;
     }
 
     public class ClaimLicenseRequestDto
     {
-        public string ActivationCode { get; set; } = string.Empty;
+        public string? ActivationCode { get; set; }
+        public string? LicenseKey { get; set; }
     }
 
     public class ClaimLicenseResponseDto
@@ -107,6 +116,7 @@ namespace Mimo.Application.DTOs.Business
         public Guid Id { get; set; }
         public Guid ClassId { get; set; }
         public string ClassName { get; set; } = string.Empty;
+        public bool IsSample { get; set; } = false;
         public Guid NodeId { get; set; }
         public string NodeTitle { get; set; } = string.Empty;
         public string Title { get; set; } = string.Empty;
@@ -135,6 +145,7 @@ namespace Mimo.Application.DTOs.Business
     {
         public Guid ClassId { get; set; }
         public string ClassName { get; set; } = string.Empty;
+        public bool IsSample { get; set; } = false;
         public List<QuestionHeatmapItemDto> Questions { get; set; } = new();
     }
 
@@ -154,6 +165,7 @@ namespace Mimo.Application.DTOs.Business
     {
         public Guid ClassId { get; set; }
         public string ClassName { get; set; } = string.Empty;
+        public bool IsSample { get; set; } = false;
         public List<StudentProgressItemDto> Students { get; set; } = new();
     }
 
@@ -170,6 +182,7 @@ namespace Mimo.Application.DTOs.Business
 
     public class SkillGapReportDto
     {
+        public bool IsSample { get; set; } = false;
         public List<DomainSkillGapDto> Domains { get; set; } = new();
     }
 
@@ -195,6 +208,7 @@ namespace Mimo.Application.DTOs.Business
         public Guid Id { get; set; }
         public string Code { get; set; } = string.Empty;
         public string ClassName { get; set; } = string.Empty;
+        public bool IsSample { get; set; } = false;
         public string School { get; set; } = string.Empty;
         public string? Topic { get; set; }
         public string? Teacher { get; set; }
@@ -224,5 +238,10 @@ namespace Mimo.Application.DTOs.Business
             get => ClassCode;
             set { if (!string.IsNullOrWhiteSpace(value)) ClassCode = value; }
         }
+    }
+
+    public class LeaveClassRequestDto
+    {
+        public Guid? ClassId { get; set; }
     }
 }

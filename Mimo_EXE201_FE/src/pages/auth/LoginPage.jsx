@@ -5,7 +5,19 @@ import { authService } from '../../services/modules/authService';
 import { getRedirectPathByRole } from '../../utils/roleRedirect';
 import { GoogleIcon, FacebookIcon, AppleIcon } from '../../components/common/SocialIcons';
 import MimoMascot from '../../components/common/MimoMascot';
+import { getApiErrorMessage, isConnectionError } from '../../services/api/mockConfig';
 import './AuthPages.css';
+
+// Phân biệt lỗi kết nối/máy chủ (đáng thử lại) với lỗi nghiệp vụ (sai mật khẩu...)
+const describeLoginError = (err) => {
+  if (isConnectionError(err)) {
+    return 'Máy chủ đang khởi động hoặc mất kết nối. Vui lòng thử lại sau vài giây!';
+  }
+  if (err?.response?.status === 401) {
+    return 'Email hoặc mật khẩu không đúng.';
+  }
+  return getApiErrorMessage(err, 'Đăng nhập không thành công');
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -31,7 +43,7 @@ export default function LoginPage() {
       const targetPath = getRedirectPathByRole(user.role);
       navigate(targetPath, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Đăng nhập không thành công');
+      setError(describeLoginError(err));
     } finally {
       setLoading(false);
     }
@@ -57,7 +69,7 @@ export default function LoginPage() {
       const targetPath = destinationPath || getRedirectPathByRole(user.role);
       navigate(targetPath, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || err.message || 'Đăng nhập không thành công');
+      setError(describeLoginError(err));
     } finally {
       setLoading(false);
     }

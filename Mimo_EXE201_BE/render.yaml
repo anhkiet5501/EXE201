@@ -29,3 +29,14 @@ services:
         sync: false
       - key: Supabase__BucketName
         value: mimo-assets
+      - key: Vnpay__TmnCode
+        sync: false
+      - key: Vnpay__HashSecret
+        sync: false
+      - key: Vnpay__ReturnUrl
+        sync: false
+      - key: Vnpay__FrontendReturnUrl
+        sync: false
+      # Mặc định TẮT endpoint kích hoạt Pro giả lập ở Production
+      - key: Payment__AllowMockActivate
+        value: "false"
