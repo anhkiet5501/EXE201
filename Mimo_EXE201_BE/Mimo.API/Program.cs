@@ -47,8 +47,17 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("MimoCorsPolicy", policy =>
     {
-        policy.WithOrigins(allowedOrigins)
-              .SetIsOriginAllowedToAllowWildcardSubdomains()
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  if (string.IsNullOrWhiteSpace(origin)) return false;
+                  if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                  {
+                      if (uri.Host == "localhost" || uri.Host == "127.0.0.1") return true;
+                      if (uri.Host.EndsWith(".vercel.app", StringComparison.OrdinalIgnoreCase)) return true;
+                      if (uri.Host.EndsWith(".mimo.app", StringComparison.OrdinalIgnoreCase) || uri.Host == "mimo.app") return true;
+                  }
+                  return allowedOrigins.Any(o => string.Equals(o, origin, StringComparison.OrdinalIgnoreCase));
+              })
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
