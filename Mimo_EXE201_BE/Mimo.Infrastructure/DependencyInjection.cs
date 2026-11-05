@@ -84,6 +84,9 @@ public static class DependencyInjection
         // VNPay Payment Options
         services.Configure<Mimo.Application.Helper.Payment.VnPayOptions>(configuration.GetSection(Mimo.Application.Helper.Payment.VnPayOptions.SectionName));
 
+        // SePay (chuyển khoản VietQR + webhook)
+        services.Configure<Mimo.Application.Helper.Payment.SePayOptions>(configuration.GetSection(Mimo.Application.Helper.Payment.SePayOptions.SectionName));
+
         return services;
     }
 }

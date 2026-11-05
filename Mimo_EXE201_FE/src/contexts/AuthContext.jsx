@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
           ...meData,
           role: prev?.role || 'STUDENT',
           isPro,
-          isPlus: isPro || prev?.isPlus,
+          isPlus: isPro,
           plan: cleanPlan,
           planCode: cleanPlan,
           planName: meData.planName || prev?.planName || (isPro ? 'Gói 6 Tháng (Half-Year)' : 'Mimo Free'),

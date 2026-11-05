@@ -37,6 +37,12 @@ services:
         sync: false
       - key: Vnpay__FrontendReturnUrl
         sync: false
-      # Mặc định TẮT endpoint kích hoạt Pro giả lập ở Production
-      - key: Payment__AllowMockActivate
-        value: "false"
+      # Thanh toán chuyển khoản SePay (VietQR + webhook). Đặt giá trị trong Render Dashboard, không commit.
+      - key: SePay__ApiKey
+        sync: false
+      - key: SePay__BankCode
+        sync: false
+      - key: SePay__AccountNumber
+        sync: false
+      - key: SePay__AccountName
+        sync: false

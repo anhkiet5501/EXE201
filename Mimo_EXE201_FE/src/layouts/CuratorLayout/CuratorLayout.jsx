@@ -29,7 +29,7 @@ export default function CuratorLayout() {
           min-height: 100vh;
           background: #0d091a;
           color: #f8fafc;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
         /* ─── SIDEBAR ─── */

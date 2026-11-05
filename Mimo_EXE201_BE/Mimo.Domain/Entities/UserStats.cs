@@ -32,8 +32,27 @@ namespace Mimo.DomainLayer.Entities
         /// Lazy Heart Regeneration theo công thức tại AGENT.md Section 5.1
         /// 1 Tim hồi phục mỗi 4 tiếng (14,400 giây). Tối đa 5 Tim.
         /// </summary>
+        /// <summary>
+        /// Hạ cờ Pro nếu gói đã hết hạn (ProExpiresAt đã qua). Pro không có ProExpiresAt (cấp tay) được giữ nguyên.
+        /// Trả về true nếu có thay đổi để nơi gọi lưu lại.
+        /// </summary>
+        public bool ExpireProIfNeeded(DateTime currentUtc)
+        {
+            if (!IsPro || !ProExpiresAt.HasValue || ProExpiresAt.Value > currentUtc)
+            {
+                return false;
+            }
+
+            IsPro = false;
+            // Bắt đầu tính hồi tim tự nhiên từ lúc hết hạn
+            HeartsUpdatedAt = currentUtc;
+            return true;
+        }
+
         public (int currentHearts, int nextHeartInSeconds, bool updated) CalculateCurrentHearts(DateTime currentUtc)
         {
+            bool proExpired = ExpireProIfNeeded(currentUtc);
+
             if (IsPro)
             {
                 return (5, 0, false);
@@ -41,18 +60,18 @@ namespace Mimo.DomainLayer.Entities
 
             if (Hearts >= 5)
             {
-                return (5, 0, false);
+                return (5, 0, proExpired);
             }
 
             var timeDiff = currentUtc - HeartsUpdatedAt;
             if (timeDiff <= TimeSpan.Zero)
             {
-                return (Hearts, (int)TimeSpan.FromHours(4).TotalSeconds, false);
+                return (Hearts, (int)TimeSpan.FromHours(4).TotalSeconds, proExpired);
             }
 
             var fourHours = TimeSpan.FromHours(4);
             int recoveredHearts = (int)(timeDiff.TotalSeconds / fourHours.TotalSeconds);
-            bool updated = false;
+            bool updated = proExpired;
 
             if (recoveredHearts > 0)
             {
