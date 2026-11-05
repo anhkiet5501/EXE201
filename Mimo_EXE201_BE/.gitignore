@@ -83,3 +83,6 @@ secrets.json
 Thumbs.db
 ehthumbs.db
 [Dd]esktop.ini
+
+# Local secrets (never commit)
+Mimo.API/appsettings.Development.json

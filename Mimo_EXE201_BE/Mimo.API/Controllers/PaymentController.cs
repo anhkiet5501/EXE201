@@ -25,15 +25,18 @@ namespace Mimo.API.Controllers
         private readonly IPaymentService _paymentService;
         private readonly VnPayOptions _vnPayOptions;
         private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _configuration;
 
         public PaymentController(
             IPaymentService paymentService,
             IOptions<VnPayOptions> vnPayOptions,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IConfiguration configuration)
         {
             _paymentService = paymentService;
             _vnPayOptions = vnPayOptions.Value;
             _env = env;
+            _configuration = configuration;
         }
 
         private Guid GetCurrentUserId()
@@ -155,6 +158,13 @@ namespace Mimo.API.Controllers
             [FromBody] CreatePaymentRequestDto request,
             CancellationToken cancellationToken)
         {
+            // Chỉ cho phép ở Development, hoặc khi bật rõ ràng bằng cấu hình Payment:AllowMockActivate=true.
+            // Mặc định TẮT ở Staging/Production để người dùng không tự cấp Pro cho mình.
+            if (!_env.IsDevelopment() && !_configuration.GetValue<bool>("Payment:AllowMockActivate"))
+            {
+                throw new ForbiddenException("Chức năng kích hoạt giả lập đã bị vô hiệu hóa ở môi trường này.");
+            }
+
             if (string.IsNullOrWhiteSpace(request.PlanCode))
             {
                 throw new BadRequestException("PlanCode không được để trống.");

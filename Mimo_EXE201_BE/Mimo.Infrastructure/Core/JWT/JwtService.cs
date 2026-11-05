@@ -13,15 +13,23 @@ namespace Mimo.Infrastructure.Core.JWT;
 
 public class JwtService : IJwtService
 {
-    private const string DEFAULT_SECRET = "0ebe2440a9eba77bed3a7a081b9bb26d792baaec3fcac1eae95b7148bfdcb8c5";
+    private const int MIN_SECRET_LENGTH = 32;
     private readonly byte[] _key;
     private readonly JwtSecurityTokenHandler _handler;
 
     public JwtService(IConfiguration? configuration = null)
     {
-        var secretKey = configuration?["Jwt:Secret"] 
-            ?? Environment.GetEnvironmentVariable("JWT_SECRET") 
-            ?? DEFAULT_SECRET;
+        var secretKey = configuration?["Jwt:Secret"];
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            secretKey = Environment.GetEnvironmentVariable("JWT_SECRET");
+        }
+
+        if (string.IsNullOrWhiteSpace(secretKey) || secretKey.Length < MIN_SECRET_LENGTH)
+        {
+            throw new InvalidOperationException(
+                $"Thiếu cấu hình Jwt:Secret (biến môi trường Jwt__Secret hoặc JWT_SECRET), tối thiểu {MIN_SECRET_LENGTH} ký tự.");
+        }
 
         _key = Encoding.UTF8.GetBytes(secretKey);
         _handler = new JwtSecurityTokenHandler();
