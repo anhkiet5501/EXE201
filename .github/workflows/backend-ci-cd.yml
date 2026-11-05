@@ -75,6 +75,7 @@ jobs:
           -e ASPNETCORE_ENVIRONMENT=Staging \
           -e ENABLE_SWAGGER=true \
           -e APPLY_MIGRATIONS=false \
+          -e Jwt__Secret=ci-only-dummy-secret-not-for-production-0123456789 \
           -p 8080:8080 \
           mimo-api:latest
         sleep 5
