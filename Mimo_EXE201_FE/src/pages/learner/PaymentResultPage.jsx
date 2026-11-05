@@ -29,7 +29,7 @@ const shell = {
   alignItems: 'center',
   justifyContent: 'center',
   padding: '24px',
-  fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontFamily: 'var(--font-family)',
 };
 
 const card = {
