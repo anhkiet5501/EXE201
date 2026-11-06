@@ -529,7 +529,7 @@ export default function LessonPlayPage() {
           }}
         >
           <span>❤️</span>
-          <span>{hearts}</span>
+          <span>{isPro ? '∞' : hearts}</span>
         </div>
       </header>
 

@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IStreakService, StreakService>();
         services.AddScoped<IGameplayService, GameplayService>();
         services.AddScoped<IPracticeService, PracticeService>();
+        services.AddScoped<IProService, ProService>();
         services.AddScoped<ICurriculumService, CurriculumService>();
         services.AddScoped<ILeaderboardService, LeaderboardService>();
         services.AddScoped<IAdminContentService, AdminContentService>();

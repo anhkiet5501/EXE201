@@ -4,6 +4,9 @@ import { sound, fireConfetti } from '../../utils/audioEffects';
 import { learnerService } from '../../services/modules/learnerService';
 import { businessService } from '../../services/modules/businessService';
 import { useNavigate } from 'react-router-dom';
+import { useProStatus } from '../../hooks/useProStatus';
+import ProStatusCard from '../../components/pro/ProStatusCard';
+import ProRiskReportCard from '../../components/pro/ProRiskReportCard';
 
 export default function ProfileLearnerPage() {
   const navigate = useNavigate();
@@ -97,30 +100,8 @@ export default function ProfileLearnerPage() {
     { id: 'sb3', name: 'Lê Hoàng Bảo', school: 'THPT Lê Quý Đôn', xp: 2760, avatar: '👦🏽', status: 'Học hôm qua' },
   ];
 
-  // Lấy trạng thái gói Pro tinh gọn
-  const rawUser = localStorage.getItem('mimo_user');
-  let userPlanInfo = null;
-  try {
-    userPlanInfo = rawUser ? JSON.parse(rawUser) : null;
-  } catch (e) {}
-
-  const isProActive =
-    user?.isPro === true ||
-    userPlanInfo?.isPro === true ||
-    userPlanInfo?.isPlus === true ||
-    (userPlanInfo?.plan && userPlanInfo?.plan !== 'FREE');
-
-  const currentPlanName =
-    userPlanInfo?.planName ||
-    (userPlanInfo?.plan === 'PREMIUM_6M'
-      ? 'Gói 6 Tháng'
-      : userPlanInfo?.plan === 'PREMIUM_3M'
-      ? 'Gói 3 Tháng'
-      : userPlanInfo?.plan === 'PREMIUM_1M'
-      ? 'Gói 1 Tháng'
-      : isProActive
-      ? 'Mimo Pro'
-      : 'Mimo Free');
+  // Trạng thái Pro lấy từ Backend (/auth/me) qua AuthContext
+  const { isPro: isProActive, planName: currentPlanName } = useProStatus();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '960px', margin: '0 auto' }}>
@@ -300,6 +281,10 @@ export default function ProfileLearnerPage() {
           </div>
         </div>
       </div>
+
+      {/* QUYỀN LỢI MIMO PRO: thẻ trạng thái (Pro) + báo cáo rủi ro (Pro) hoặc thẻ giới thiệu (Free) */}
+      <ProStatusCard />
+      <ProRiskReportCard />
 
       {/* POPUP CHỌN AVATAR */}
       {showAvatarPicker && (

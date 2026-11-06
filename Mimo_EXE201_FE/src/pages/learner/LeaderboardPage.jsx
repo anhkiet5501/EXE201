@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import ProBadge from '../../components/pro/ProBadge';
 import { useOutletContext } from 'react-router-dom';
 import { sound } from '../../utils/audioEffects';
 import { learnerService } from '../../services/modules/learnerService';
@@ -56,6 +57,7 @@ export default function LeaderboardPage() {
           ),
           avatarText: u.avatarUrl || u.AvatarUrl ? null : '🧑🏻',
           isMe: Boolean(u.isCurrentUser ?? u.IsCurrentUser),
+          isPro: Boolean(u.isPro ?? u.IsPro),
         }))
       : defaultUsers;
 
@@ -123,7 +125,7 @@ export default function LeaderboardPage() {
           <div style={{ fontSize: '24px', marginBottom: '-8px' }}>🥈</div>
           <div style={{ fontSize: '42px', marginBottom: '6px' }}>{top2.avatar}</div>
           <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A', textAlign: 'center' }}>
-            {top2.name}
+            {top2.name} {top2.isPro && <ProBadge size="sm" label="" />}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: '#64748B' }}>
             {top2.xp?.toLocaleString()} XP
@@ -152,7 +154,7 @@ export default function LeaderboardPage() {
           <div style={{ fontSize: '32px', marginBottom: '-8px' }}>👑</div>
           <div style={{ fontSize: '50px', marginBottom: '6px' }}>{top1.avatar}</div>
           <div style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A', textAlign: 'center' }}>
-            {top1.name}
+            {top1.name} {top1.isPro && <ProBadge size="sm" label="" />}
           </div>
           <div style={{ fontSize: '14px', fontWeight: 900, color: '#D97706' }}>
             {top1.xp?.toLocaleString()} XP
@@ -182,7 +184,7 @@ export default function LeaderboardPage() {
           <div style={{ fontSize: '24px', marginBottom: '-8px' }}>🥉</div>
           <div style={{ fontSize: '42px', marginBottom: '6px' }}>{top3.avatar}</div>
           <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0F172A', textAlign: 'center' }}>
-            {top3.name}
+            {top3.name} {top3.isPro && <ProBadge size="sm" label="" />}
           </div>
           <div style={{ fontSize: '13px', fontWeight: 800, color: '#B45309' }}>
             {top3.xp?.toLocaleString()} XP
@@ -258,7 +260,7 @@ export default function LeaderboardPage() {
                     <span style={{ fontSize: '26px' }}>{u.avatar}</span>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: isMe ? 900 : 700, color: '#0F172A' }}>
-                        {u.name} {isMe && <span style={{ color: '#D97706', fontSize: '12px' }}>(Bạn)</span>}
+                        {u.name} {u.isPro && <ProBadge size="sm" label="" />} {isMe && <span style={{ color: '#D97706', fontSize: '12px' }}>(Bạn)</span>}
                       </div>
                     </div>
                   </div>

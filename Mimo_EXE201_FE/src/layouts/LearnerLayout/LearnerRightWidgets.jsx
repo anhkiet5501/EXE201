@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sound } from '../../utils/audioEffects';
+import { useProStatus } from '../../hooks/useProStatus';
 
 export default function LearnerRightWidgets({
   leaderboard = {
@@ -21,6 +22,7 @@ export default function LearnerRightWidgets({
   onClaimQuest = () => {},
 }) {
   const navigate = useNavigate();
+  const { isPro, planName, daysLeft } = useProStatus();
   const [claimedQuests, setClaimedQuests] = useState({});
 
   // Chuẩn hóa nếu nhận LeaderboardResponseDto từ Backend
@@ -80,23 +82,32 @@ export default function LearnerRightWidgets({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1px', opacity: 0.85 }}>
-              ĐẶC QUYỀN CAO CẤP
+              {isPro ? 'THÀNH VIÊN CAO CẤP' : 'ĐẶC QUYỀN CAO CẤP'}
             </div>
             <div style={{ fontSize: '22px', fontWeight: 900, marginTop: '2px', letterSpacing: '-0.5px' }}>
-              MIMO PRO ✨
+              {isPro ? 'BẠN LÀ MIMO PRO ✨' : 'MIMO PRO ✨'}
             </div>
           </div>
           <div style={{ fontSize: '38px', lineHeight: 1 }}>👑</div>
         </div>
 
         <p style={{ fontSize: '13px', margin: '12px 0 16px 0', opacity: 0.95, lineHeight: 1.4 }}>
-          Mở khóa <strong>Vô hạn tim ❤️</strong>, luyện tập không giới hạn và nhận chứng chỉ kỹ năng an toàn!
+          {isPro ? (
+            <>
+              <strong>{planName}</strong>
+              {daysLeft !== null ? ` • còn ${daysLeft} ngày` : ''}. Đang bật: vô hạn tim ❤️, ôn tập chuyên sâu 🎯, báo cáo rủi ro 📊.
+            </>
+          ) : (
+            <>
+              Mở khóa <strong>Vô hạn tim ❤️</strong>, <strong>ôn tập chuyên sâu 🎯</strong> và <strong>báo cáo rủi ro 📊</strong> để luyện phản xạ an toàn nhanh hơn!
+            </>
+          )}
         </p>
 
         <button
           onClick={() => {
             sound.playClick();
-            alert('Chào mừng bạn đến với chương trình trải nghiệm MIMO PRO miễn phí 7 ngày!');
+            navigate(isPro ? '/learn/profile' : '/learn/upgrade');
           }}
           style={{
             width: '100%',
@@ -125,7 +136,7 @@ export default function LearnerRightWidgets({
             e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.16)';
           }}
         >
-          <span>DÙNG THỬ 7 NGÀY MIỄN PHÍ</span>
+          <span>{isPro ? 'XEM QUYỀN LỢI PRO' : 'NÂNG CẤP MIMO PRO'}</span>
           <span>➔</span>
         </button>
       </div>

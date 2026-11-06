@@ -88,7 +88,8 @@ namespace Mimo.Application.Services
                     WeeklyXp = rec.WeeklyXp,
                     Level = levelInfo.Level,
                     LevelTitle = levelInfo.Title,
-                    IsCurrentUser = isMe
+                    IsCurrentUser = isMe,
+                    IsPro = rec.IsPro
                 });
             }
 
@@ -102,7 +103,7 @@ namespace Mimo.Application.Services
                 if (currentUserEntry == null)
                 {
                     // Người dùng không nằm trong Top 30 -> tính toán thứ hạng riêng biệt
-                    var user = await _userRepository.FirstOrDefaultAsync(u => u.Id == currentUserId.Value, nameof(User.Profile));
+                    var user = await _userRepository.FirstOrDefaultAsync(u => u.Id == currentUserId.Value, nameof(User.Profile), nameof(User.Stats));
                     if (user != null)
                     {
                         int myWeeklyXp = await _leaderboardRepository.GetUserWeeklyXpAsync(user.Id, mondayUtc, weekEndUtc, cancellationToken);
@@ -118,7 +119,8 @@ namespace Mimo.Application.Services
                             WeeklyXp = myWeeklyXp,
                             Level = myLevel.Level,
                             LevelTitle = myLevel.Title,
-                            IsCurrentUser = true
+                            IsCurrentUser = true,
+                            IsPro = user.Stats != null && user.Stats.IsPro && (user.Stats.ProExpiresAt == null || user.Stats.ProExpiresAt > DateTime.UtcNow)
                         };
                     }
                 }

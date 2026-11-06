@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sound } from '../../utils/audioEffects';
 import MimoPlusUpgradeModal from '../../components/modals/MimoPlusUpgradeModal';
+import { useProStatus } from '../../hooks/useProStatus';
+import ProBadge from '../../components/pro/ProBadge';
 
 export default function LearnerTopHeader({
   stats = {
@@ -23,20 +25,8 @@ export default function LearnerTopHeader({
   const [showXpModal, setShowXpModal] = useState(false);
   const [showPlusModal, setShowPlusModal] = useState(false);
 
-  const rawUser = localStorage.getItem('mimo_user');
-  let userObj = null;
-  try {
-    userObj = rawUser ? JSON.parse(rawUser) : null;
-  } catch (e) {
-    console.error(e);
-  }
-  const isPlusUser =
-    userObj?.isPro === true ||
-    userObj?.isPlus === true ||
-    (userObj?.plan && userObj?.plan !== 'FREE') ||
-    stats?.isPro === true ||
-    rawUser?.includes('PLUS') ||
-    false;
+  // Trạng thái Pro lấy từ Backend (/auth/me) qua AuthContext, không đoán từ chuỗi trong localStorage
+  const { isPro: isPlusUser, daysLeft } = useProStatus();
 
   const currentDomainObj = domains.find((d) => d.id === activeDomain) || {
     name: 'Sơ cấp cứu ban đầu',
@@ -52,7 +42,8 @@ export default function LearnerTopHeader({
         style={{
           height: '68px',
           background: 'var(--bg-card)',
-          borderBottom: '2px solid var(--border-subtle)',
+          borderBottom: isPlusUser ? '3px solid #F59E0B' : '2px solid var(--border-subtle)',
+          boxShadow: isPlusUser ? '0 4px 14px rgba(245, 158, 11, 0.18)' : 'none',
           padding: '0 28px',
           display: 'flex',
           alignItems: 'center',
@@ -143,7 +134,7 @@ export default function LearnerTopHeader({
               fontSize: '14px',
               color: isPlusUser ? '#7C3AED' : '#DC2626',
             }}
-            title={isPlusUser ? 'Đặc quyền Vô Hạn Tim (MIMO PLUS)' : 'Mạng sống còn lại'}
+            title={isPlusUser ? 'Đặc quyền Vô Hạn Tim (MIMO PRO)' : 'Mạng sống còn lại'}
           >
             <span style={{ fontSize: '18px' }}>❤️</span>
             <span>{isPlusUser ? '∞ Vô Hạn' : `${stats.hearts}/${stats.maxHearts}`}</span>
@@ -173,7 +164,7 @@ export default function LearnerTopHeader({
               }}
             >
               <span>👑</span>
-              <span>MIMO PLUS</span>
+              <span>NÂNG CẤP PRO</span>
             </button>
           ) : (
             <button
@@ -196,8 +187,7 @@ export default function LearnerTopHeader({
               }}
               title="Xem thông tin gói hội viên của bạn"
             >
-              <span>👑</span>
-              <span>PLUS MEMBER</span>
+              <ProBadge label={daysLeft !== null ? `PRO · còn ${daysLeft} ngày` : 'PRO'} />
             </button>
           )}
 

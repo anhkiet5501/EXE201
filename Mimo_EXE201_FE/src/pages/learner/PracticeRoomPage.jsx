@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 import { learnerService } from '../../services/modules/learnerService';
+import ProDeepReview from '../../components/pro/ProDeepReview';
+import { useProStatus } from '../../hooks/useProStatus';
 import { USE_MOCK, getApiErrorMessage } from '../../services/api/mockConfig';
 
 // Danh sách dự phòng nếu người dùng chưa từng làm sai câu nào
@@ -32,7 +34,7 @@ const defaultPracticeQuestions = [
   },
 ];
 
-export default function PracticeRoomPage() {
+function StandardPractice() {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState(defaultPracticeQuestions);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -327,6 +329,38 @@ export default function PracticeRoomPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Phòng ôn tập: tab "Hồi tim" (mọi người dùng) và tab "Ôn tập chuyên sâu" (Mimo Pro). */
+export default function PracticeRoomPage() {
+  const { isPro } = useProStatus();
+  const [mode, setMode] = useState('standard');
+
+  const tabStyle = (active) => ({
+    flex: 1,
+    padding: '12px 14px',
+    borderRadius: '14px',
+    border: `2px solid ${active ? '#F59E0B' : '#E2E8F0'}`,
+    background: active ? '#FFFBEB' : '#FFFFFF',
+    color: active ? '#92400E' : '#475569',
+    fontWeight: 800,
+    fontSize: '14px',
+    cursor: 'pointer',
+  });
+
+  return (
+    <div style={{ maxWidth: '640px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      <div style={{ display: 'flex', gap: '10px' }}>
+        <button onClick={() => setMode('standard')} style={tabStyle(mode === 'standard')}>
+          🎯 Ôn tập hồi tim
+        </button>
+        <button onClick={() => setMode('deep')} style={tabStyle(mode === 'deep')}>
+          👑 Ôn tập chuyên sâu {!isPro && '🔒'}
+        </button>
+      </div>
+      {mode === 'standard' ? <StandardPractice /> : <ProDeepReview />}
     </div>
   );
 }

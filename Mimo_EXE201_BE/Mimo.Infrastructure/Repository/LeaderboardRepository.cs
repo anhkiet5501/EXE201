@@ -26,6 +26,7 @@ namespace Mimo.Infrastructure.Repository
             int top = 30, 
             CancellationToken cancellationToken = default)
         {
+            var nowUtc = DateTime.UtcNow;
             var query = from u in _context.Users.AsNoTracking()
                         where u.Status == UserStatusEnum.Active
                         let weeklyXp = _context.XpEvents
@@ -40,6 +41,7 @@ namespace Mimo.Infrastructure.Repository
                             AvatarUrl = u.Profile != null && !string.IsNullOrWhiteSpace(u.Profile.AvatarUrl) ? u.Profile.AvatarUrl : u.Avatar,
                             TotalXp = u.TotalXp,
                             WeeklyXp = weeklyXp,
+                            IsPro = u.Stats != null && u.Stats.IsPro && (u.Stats.ProExpiresAt == null || u.Stats.ProExpiresAt > nowUtc),
                             CreatedAt = u.CreatedAt ?? DateTime.UtcNow
                         };
 

@@ -16,6 +16,8 @@ namespace Mimo.Application.DTOs.Leaderboard
         public int Level { get; set; }
         public string LevelTitle { get; set; } = string.Empty;
         public bool IsCurrentUser { get; set; }
+        /// <summary>Thành viên Mimo Pro đang còn hạn (hiển thị vương miện).</summary>
+        public bool IsPro { get; set; }
     }
 
     /// <summary>

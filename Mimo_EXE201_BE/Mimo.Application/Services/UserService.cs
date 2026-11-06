@@ -342,14 +342,14 @@ namespace Mimo.Application.Services
             }
 
             var stats = await _statsRepository.FirstOrDefaultAsync(s => s.UserId == userId);
-            var allSessions = await _sessionRepository.WhereAsync(s => s.UserId == userId && s.Status == "Completed");
+            var allSessions = await _sessionRepository.WhereAsync(s => s.UserId == userId && s.Status == "completed");
             int totalMinutesLearned = (int)Math.Round(allSessions.Sum(s => s.CompletedAt.HasValue ? Math.Max(1.0, (s.CompletedAt.Value - s.StartedAt).TotalMinutes) : 2.0));
             if (totalMinutesLearned == 0 && allSessions.Any())
             {
                 totalMinutesLearned = allSessions.Count * 2;
             }
 
-            var completedProgress = await _progressRepository.WhereAsync(p => p.UserId == userId && p.Status == "Completed");
+            var completedProgress = await _progressRepository.WhereAsync(p => p.UserId == userId && p.Status == "done");
             int totalLessonsCompleted = completedProgress.Count;
 
             // 7-day Weekly Stats

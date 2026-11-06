@@ -12,6 +12,7 @@ export default function LearnerSidebar({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isProMember = user?.isPro === true;
 
   const [showPlusModal, setShowPlusModal] = useState(false);
   // Trạng thái mở rộng menu con của Học tập và Cài đặt (mặc định đóng)
@@ -521,8 +522,8 @@ export default function LearnerSidebar({
           })}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '19px' }}>⭐</span>
-            <span>Nâng cấp</span>
+            <span style={{ fontSize: '19px' }}>{isProMember ? '👑' : '⭐'}</span>
+            <span>{isProMember ? 'Mimo Pro' : 'Nâng cấp'}</span>
           </div>
           <span
             style={{

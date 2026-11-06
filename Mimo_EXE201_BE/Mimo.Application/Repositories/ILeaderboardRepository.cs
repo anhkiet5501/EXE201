@@ -12,6 +12,7 @@ namespace Mimo.Application.Repositories
         public string? AvatarUrl { get; set; }
         public int TotalXp { get; set; }
         public int WeeklyXp { get; set; }
+        public bool IsPro { get; set; }
         public DateTime CreatedAt { get; set; }
     }
 

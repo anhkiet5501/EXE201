@@ -5,6 +5,7 @@ import LearnerTopHeader from './LearnerTopHeader';
 import LearnerRightWidgets from './LearnerRightWidgets';
 import RoleSwitcher from '../../components/common/RoleSwitcher';
 import { learnerService } from '../../services/modules/learnerService';
+import { useAuth } from '../../contexts/AuthContext';
 import { mockLearnerData } from '../../services/mocks/mockLearner';
 import { USE_MOCK, getApiErrorMessage } from '../../services/api/mockConfig';
 
@@ -15,6 +16,7 @@ const initialDashboardData = USE_MOCK
 
 export default function LearnerLayout() {
   const location = useLocation();
+  const { user, refreshUser } = useAuth();
   const [dashboardData, setDashboardData] = useState(initialDashboardData);
   const [activeDomain, setActiveDomain] = useState('first_aid');
   const [loading, setLoading] = useState(!USE_MOCK);
@@ -58,6 +60,8 @@ export default function LearnerLayout() {
 
   const fetchDashboardData = async (selectedDomainId = null) => {
     setLoadError('');
+    // Làm mới tim/XP/streak/Pro từ Backend (nguồn sự thật) mỗi khi vào lại khu học tập
+    refreshUser();
     try {
       // 1. Lấy danh sách domains từ Backend
       const domainsRes = await learnerService.getDomains();
@@ -117,6 +121,27 @@ export default function LearnerLayout() {
     fetchDashboardData();
   }, []);
 
+  // Thanh trạng thái trên cùng: dùng số liệu THẬT của tài khoản (tim, streak, XP, bùa, Pro).
+  // Trước đây đây là dữ liệu mẫu cố định (7 streak, 1250 XP, 4/5 tim) nên tài khoản Pro nhìn không khác Free.
+  const headerStats = (() => {
+    if (USE_MOCK || !user) return dashboardData?.stats;
+    const streak = user.streak ?? 0;
+    const todayIdx = (new Date().getDay() + 6) % 7; // T2 = 0 ... CN = 6
+    return {
+      ...dashboardData?.stats,
+      hearts: user.hearts ?? 5,
+      maxHearts: user.maxHearts ?? 5,
+      streak,
+      xp: user.totalXp ?? 0,
+      streakFreezes: user.streakFreezeCount ?? 0,
+      isPro: user.isPro === true,
+      heartRecoverySeconds: user.nextHeartInSeconds ?? 0,
+      streakDays: [0, 1, 2, 3, 4, 5, 6].map((j) => j <= todayIdx && todayIdx - j < streak),
+      todayXp: 0,
+      dailyGoalXp: (user.dailyGoalMinutes || 10) * 5,
+    };
+  })();
+
   // Xác định xem trang hiện tại có nên hiển thị Cột tiện ích bên phải không
   // Mặc định: trang lộ trình chính (/learn) sẽ hiển thị 3 cột chuẩn
   const isMapPage = location.pathname === '/learn';
@@ -144,7 +169,7 @@ export default function LearnerLayout() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* THANH TRẠNG THÁI TRÊN CÙNG (STATS BAR) */}
         <LearnerTopHeader
-          stats={dashboardData?.stats}
+          stats={headerStats}
           domains={dashboardData?.domains || []}
           activeDomain={activeDomain}
           onSelectDomain={handleSelectDomain}
