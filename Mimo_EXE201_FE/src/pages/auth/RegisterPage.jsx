@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../../services/modules/authService';
+import { trackEvent } from '../../utils/analytics';
 import { GoogleIcon, FacebookIcon, AppleIcon } from '../../components/common/SocialIcons';
 import './AuthPages.css';
 
@@ -66,6 +67,7 @@ export default function RegisterPage() {
         });
       }
 
+      trackEvent('sign_up', { method: 'email', account_type: String(accountType || 'LEARNER').toLowerCase() });
       setSuccessMsg(res?.data?.message || res?.message || 'Tạo tài khoản thành công! Đang chuyển hướng...');
       setTimeout(() => {
         navigate('/login');

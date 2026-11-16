@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useState, useEffect } fr
 import { authService } from '../services/modules/authService';
 import apiClient from '../services/api/apiClient';
 import { API_ENDPOINTS } from '../services/api/endpoints';
+import { trackEvent, identifyUser, clearUser } from '../utils/analytics';
 
 const AuthContext = createContext(null);
 
@@ -64,14 +65,24 @@ export const AuthProvider = ({ children }) => {
     refreshUser();
   }, [token, refreshUser]);
 
-  const login = (userData, userToken) => {
+  // Cập nhật thuộc tính người dùng cho GA khi đổi tài khoản / vai trò / gói (Free <-> Pro)
+  useEffect(() => {
+    if (user?.id) identifyUser(user);
+  }, [user?.id, user?.role, user?.isPro]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const login = (userData, userToken, method = 'email') => {
     setUser(userData);
     setToken(userToken);
     localStorage.setItem('mimo_user', JSON.stringify(userData));
     localStorage.setItem('mimo_token', userToken);
+
+    identifyUser(userData);
+    trackEvent('login', { method, role: String(userData?.role || '').toLowerCase() });
   };
 
   const logout = () => {
+    trackEvent('logout', { role: String(user?.role || '').toLowerCase(), reason: 'manual' });
+    clearUser();
     authService.logout();
     setUser(null);
     setToken(null);

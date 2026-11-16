@@ -5,6 +5,7 @@ import { paymentService } from '../../services/modules/paymentService';
 import apiClient from '../../services/api/apiClient';
 import { useAuth } from '../../contexts/AuthContext';
 import { getApiErrorMessage } from '../../services/api/mockConfig';
+import { trackEvent } from '../../utils/analytics';
 import { API_ENDPOINTS } from '../../services/api/endpoints';
 
 // Hàm chuẩn hóa nhận diện gói cước linh hoạt
@@ -379,6 +380,12 @@ export default function UpgradePlanPage() {
           await refreshUser();
           setActivePlan(order.planCode);
           setPaymentSuccess(true);
+          trackEvent('purchase', {
+            transaction_id: order.txnRef,
+            value: Number(order.amount) || 0,
+            currency: 'VND',
+            items: [{ item_id: order.planCode, item_name: order.planName }],
+          });
           sound.playVictory();
           fireConfetti();
         }

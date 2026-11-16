@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { learnerService } from '../../services/modules/learnerService';
 import { getApiErrorMessage, isConnectionError } from '../../services/api/mockConfig';
+import { trackEvent } from '../../utils/analytics';
 import { sound, fireConfetti } from '../../utils/audioEffects';
 
 // Hàm chuẩn hóa câu hỏi từ Backend DTO về cấu trúc UI đa dạng
@@ -262,6 +263,11 @@ export default function LessonPlayPage() {
         const res = await learnerService.completeSession(sessionId);
         const data = res.data || res;
         setCompletionData(data);
+        trackEvent('lesson_complete', {
+          perfect: Boolean(data?.isPerfectLesson),
+          xp_earned: data?.totalXpEarned ?? 0,
+          hearts_lost: data?.heartsLost ?? 0,
+        });
       } catch (err) {
         console.warn('Lỗi khi tổng kết phiên học:', err);
         // Chỉ ăn mừng khi server đã chốt phiên; nếu lỗi thì báo thật và cho thử lại
